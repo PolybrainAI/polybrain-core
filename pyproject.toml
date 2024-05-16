@@ -26,7 +26,8 @@ dependencies = [
     "prettytable",
     "langchain",
     "langchain-openai",
-    "python-dotenv"
+    "python-dotenv",
+    "langchainhub"
 ]
 [project.optional-dependencies]
 dev = [

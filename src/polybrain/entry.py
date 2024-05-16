@@ -5,14 +5,18 @@ The entry point to the polybrain modeler
 """
 
 from textwrap import dedent
+from uuid import uuid4
 import dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain.agents import create_tool_calling_agent, initialize_agent, AgentType, create_json_chat_agent, AgentExecutor
+from langchain.agents import create_tool_calling_agent, initialize_agent, AgentType, create_json_chat_agent, AgentExecutor, create_react_agent
 from langchain_community.tools.human.tool import HumanInputRun
+from langchain.memory import ConversationBufferMemory, ChatMessageHistory
 from polybrain.tools import tools
-from langchain.memory import ConversationBufferMemory
+from polybrain.util import parse_python_code
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain import hub
 
 
 def load_prompt_str() -> str:
@@ -53,14 +57,36 @@ def load_prompt_str() -> str:
     - Referencing materials
     - Alluding to the manufacture or physical of the model
                          
-    Before answering a user's question, make sure they provided all necessary
-    dimensions. For instance, if a user asks you to create a table, you
-    should ask for the desktop size, thickness, etc. You can use this with the
-    human
+    TOOLS:
+    ------
 
+    Assistant has access to the following tools:
 
-    Use OnPy to create the model requested by the user. Use markdown to delineate
-    where you are writing python versus comments to the user.
+    {tools}
+
+    To use a tool, please use the following format:
+
+    ```
+    Thought: Do I need to use a tool? Yes
+    Action: the action to take, should be one of [{tool_names}]
+    Action Input: the input to the action
+    Observation: the result of the action
+    ```
+
+    When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
+
+    ```
+    Thought: Do I need to use a tool? No
+    Final Answer: [your response here]
+    ```
+
+    Begin!
+
+    Previous conversation history:
+    {chat_history}
+
+    New input: {input}
+    {agent_scratchpad}
     """.replace("GUIDE_DOCUMENT", guide))
 
     return prompt_text
@@ -71,23 +97,29 @@ def entry():
     dotenv.load_dotenv()
 
     # --- Init llm ---
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.2, verbose=True)
+    llm = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.2, verbose=True)
     output_parser = StrOutputParser()
 
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", load_prompt_str()),
-            ("placeholder", "{chat_history}"),
-            ("human", "{input}"),
-            ("placeholder", "{agent_scratchpad}"),
-        ]
-    )
+    # prompt = ChatPromptTemplate.from_messages(
+    #     [
+    #         ("system", load_prompt_str()),
+    #         ("placeholder", "{chat_history}"),
+    #         ("human", "{input}"),
+    #         ("placeholder", "{agent_scratchpad}"),
+    #     ]
+    # )
+
+    prompt = ChatPromptTemplate.from_template(load_prompt_str())
 
 
     memory = ConversationBufferMemory()
     agent = create_tool_calling_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False, memory=memory)
+    # prompt = hub.pull("hwchase17/react-chat")
+
+    # print("the prompt is:", prompt.template)
+    agent = create_react_agent(llm, tools, prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
     while True:
 
@@ -98,10 +130,21 @@ def entry():
             break
 
         memory.chat_memory.add_user_message(user_input)
+        memory.chat_memory.add_ai_message("My name is Jacob")
 
-        response = agent_executor.invoke({"input": user_input})
+        response = agent_executor.invoke(
+            {"input": user_input, "chat_history": memory.chat_memory.messages},
+            )
 
         memory.chat_memory.add_ai_message(response["output"])
+
+        maybe_python = parse_python_code(response["output"])
+
+        if maybe_python:
+            print("\n ---- Generated Python -----\n")
+            print(maybe_python)
+            print("\n ---- ---------------- -----\n")
+
 
         print("Polybrain:", response["output"])
 
