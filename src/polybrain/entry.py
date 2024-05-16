@@ -52,6 +52,11 @@ def load_prompt_str() -> str:
     Again, you should avoid:
     - Referencing materials
     - Alluding to the manufacture or physical of the model
+                         
+    Before answering a user's question, make sure they provided all necessary
+    dimensions. For instance, if a user asks you to create a table, you
+    should ask for the desktop size, thickness, etc. You can use this with the
+    human
 
 
     Use OnPy to create the model requested by the user. Use markdown to delineate
