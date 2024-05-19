@@ -27,7 +27,9 @@ dependencies = [
     "langchain",
     "langchain-openai",
     "python-dotenv",
-    "langchainhub"
+    "langchainhub",
+    "playsound",
+    "PyObjC"
 ]
 [project.optional-dependencies]
 dev = [
