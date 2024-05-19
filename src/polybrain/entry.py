@@ -15,9 +15,12 @@ from langchain_community.tools.human.tool import HumanInputRun
 from langchain.memory import ConversationBufferMemory, ChatMessageHistory
 from polybrain.tools import tools
 from polybrain.util import parse_python_code
+from polybrain.code_runner.run import run_python_code
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain import hub
 
+# MODEL = "gpt-3.5-turbo-0125"
+MODEL = "gpt-4o"
 
 def load_prompt_str() -> str:
     """Loads the master prompt as a string"""
@@ -29,7 +32,7 @@ def load_prompt_str() -> str:
 
     You are a LLM powered mechanical engineer created by Polybrain--an AI company
     from San Francisco, California. Your name is Jacob, and your job is to create
-    3D models using OnShape--a popular CAD platform.
+    3D models using OnShape--a popular CAD platform. 
                     
     As a large language model, you are unable to directly interact with the OnShape
     software. Instead, you will need to interact with OnShape through OnPy,
@@ -46,6 +49,17 @@ def load_prompt_str() -> str:
     ======= DOCUMENT BEGIN =======
     GUIDE_DOCUMENT
     ======= DOCUMENT END =======
+                         
+    When writing python code, you do not need to import onpy or get a reference
+    to a partstudio. `onpy` and `partstudio` will always be defined in the 
+    environment where your code runs. However, you still need to format
+    your code in complete brackets. For instance,
+                         
+    ```python
+    sketch = partstudio.add_sketch(partstudio.features.top_plane)            
+    ```
+    Even though we don't include `import onpy` or the retrieval of the partstudio
+    variable, we can safely assume that our code will still execute as intended.
 
     OnPy's limited tools mean that all geometries created will be minimal and
     simple. For this reason, do not worry about the physical feasibility of the
@@ -56,7 +70,10 @@ def load_prompt_str() -> str:
     Again, you should avoid:
     - Referencing materials
     - Alluding to the manufacture or physical of the model
-                         
+    - Asking for dimensions that were already provided
+    - Asking if a model should be created (just make it)
+
+
     TOOLS:
     ------
 
@@ -76,11 +93,19 @@ def load_prompt_str() -> str:
     When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
 
     ```
+    Thought: define next specific step
+    Thought: what do I need to know
     Thought: Do I need to use a tool? No
-    Final Answer: [your response here]
+    Thought: Has the model been created using the run_code tool? Yes
+    Thought: Am I allowed to final answer? Yes
+    Final Answer: [your response]
     ```
+                         
+    You are NOT allowed to provide a final answer until the model has been created with the run_code tool.
+                         
+    You are encouraged to include as many Thoughts as possible. Once you have collected thoughts, you 
+    are also encouraged to share them with the user using the speak_tool.
 
-    Begin!
 
     Previous conversation history:
     {chat_history}
@@ -97,40 +122,23 @@ def entry():
     dotenv.load_dotenv()
 
     # --- Init llm ---
-    llm = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.2, verbose=True)
-    output_parser = StrOutputParser()
-
-
-    # prompt = ChatPromptTemplate.from_messages(
-    #     [
-    #         ("system", load_prompt_str()),
-    #         ("placeholder", "{chat_history}"),
-    #         ("human", "{input}"),
-    #         ("placeholder", "{agent_scratchpad}"),
-    #     ]
-    # )
-
+    llm = ChatOpenAI(model=MODEL, temperature=0.2, verbose=False)
     prompt = ChatPromptTemplate.from_template(load_prompt_str())
 
 
     memory = ConversationBufferMemory()
     agent = create_tool_calling_agent(llm, tools, prompt)
-    # prompt = hub.pull("hwchase17/react-chat")
-
-    # print("the prompt is:", prompt.template)
     agent = create_react_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
+    agent_executor.return_intermediate_steps = True
 
     while True:
 
 
-        user_input = input("You: ")
+        user_input = "HUMAN: " + input("You: ")
 
         if user_input.lower() in ("exit", "q"):
             break
-
-        memory.chat_memory.add_user_message(user_input)
-        memory.chat_memory.add_ai_message("My name is Jacob")
 
         response = agent_executor.invoke(
             {"input": user_input, "chat_history": memory.chat_memory.messages},
@@ -140,11 +148,22 @@ def entry():
 
         maybe_python = parse_python_code(response["output"])
 
-        if maybe_python:
+        while maybe_python is not None:
             print("\n ---- Generated Python -----\n")
             print(maybe_python)
             print("\n ---- ---------------- -----\n")
 
+            output = run_python_code(maybe_python)
+            print(f"Got code response:\n {output}")
 
-        print("Polybrain:", response["output"])
+            response = response = agent_executor.invoke(
+            {"input": f"SYSTEM: {output}", "chat_history": memory.chat_memory.messages},
+            )
+
+
+            maybe_python = parse_python_code(response["output"])
+
+
+        print("\nPolybrain:", response["output"])
+        print("\n")
 

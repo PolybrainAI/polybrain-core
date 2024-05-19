@@ -36,7 +36,35 @@ def speak_tool(text: str) -> None:
 
 
 def get_input() -> str:
-    return input("You: ")
+    return input("\nQuestion: ")
 
-human_tool = HumanInputRun(input_func=get_input, prompt_func=lambda x: print(f"Polybrain: {x}"))
-tools = [human_tool]
+human_tool = HumanInputRun(
+    input_func=get_input, 
+    prompt_func=lambda x: print(f"Polybrain: {x}"), 
+    description="Use this tool when you need information about the model to create. Do NOT ask how to do something.",
+    handle_validation_error=True)
+
+@tool
+def code_tool(code: str) -> str:
+    """Runs Python code and returns the STDOUT and STDERR. Assumes that a 
+    variable named `partstudio` exists, that is an OnPy partstudio. Run
+    this tool multiple times until errors are fixed.
+    
+    Args:
+        code: Properly formatted python code
+
+    Returns:
+        A string containing the STDOUT and STDERR
+    """
+
+    if "import onpy" in code or "partstudio =" in code:
+        return "ERROR: OnPy is already imported and a partstudio object is already defined. Do not include these in the script"
+
+    if "```" in code:
+        code = unwrap(parse_python_code(code), default=code.replace("```", ""))
+
+    return run_python_code(code)
+
+
+
+tools = [human_tool, code_tool, speak_tool]
