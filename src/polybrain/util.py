@@ -1,4 +1,10 @@
+from dataclasses import dataclass
 import re
+
+@dataclass
+class TokenContainer:
+    openai_token: str 
+    onshape_token: str
 
 def parse_python_code(response: str) -> str|None:
     """Parses the python code out of a response from an LLM. Assumes markdown 
@@ -20,7 +26,7 @@ def parse_python_code(response: str) -> str|None:
         return '\n'.join(matches)
     else:
         return None
-    
+
 
 def unwrap[
     T

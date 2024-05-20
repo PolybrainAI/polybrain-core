@@ -4,6 +4,7 @@ Tools for the LangChain agent are defined here
 
 """
 
+from typing import Sequence
 from langchain_community.tools.human.tool import HumanInputRun
 from langchain.tools import tool
 
@@ -56,4 +57,4 @@ def code_tool(code: str) -> str:
 
 
 
-tools = [get_input, code_tool, speak_tool]
+tools: Sequence = [get_input, code_tool, speak_tool]

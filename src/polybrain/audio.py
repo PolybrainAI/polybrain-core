@@ -4,10 +4,6 @@ from openai import OpenAI
 import playsound
 import os
 
-# TODO: Move this to __init__
-import os 
-os.chdir(os.path.dirname(__file__))
-
 client = OpenAI()
 
 # Parameters
