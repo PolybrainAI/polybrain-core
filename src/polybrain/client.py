@@ -16,6 +16,7 @@ from langchain.agents import AgentExecutor, create_react_agent
 from langchain.memory import ConversationBufferMemory
 
 from openai import OpenAI
+import requests
 from polybrain.util import TokenContainer, parse_python_code
 from polybrain.tools import ToolContainer
 from polybrain.interpreter import Interpreter
@@ -189,12 +190,12 @@ class Client:
     def load_onpy_guide() -> str:
         """Loads the OnPy guide as a string"""
 
-        # TODO: Download a copy from the OnPy repo
+        GUIDE_URL = "https://raw.githubusercontent.com/kyle-tennison/onpy/main/guide.md"
 
-        onpy_guide = Path("assets/onpy_guide.md")
+        r = requests.get(GUIDE_URL)
+        r.raise_for_status()
 
-        with onpy_guide.open("r") as f:
-            return f.read()
+        return r.text
 
     def get_input(self) -> str:
         """Gets the user's input, by audio or text, depending on the configuration.
