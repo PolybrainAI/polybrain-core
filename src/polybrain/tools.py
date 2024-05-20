@@ -9,12 +9,7 @@ from langchain.tools import tool
 
 from polybrain.code_runner.run import run_python_code
 from polybrain.util import parse_python_code, unwrap
-
-from openai import OpenAI
-import playsound
-import os
-
-client = OpenAI()
+from polybrain.audio import speak_text, get_audio_input
 
 @tool
 def speak_tool(text: str) -> None:
@@ -24,25 +19,19 @@ def speak_tool(text: str) -> None:
         text: The text to speak
     """
 
-    with client.audio.speech.with_streaming_response.create(
-        model="tts-1",
-        voice="alloy",
-        input=text,
-    ) as response:
-        response.stream_to_file("speech.mp3")
-        playsound.playsound("speech.mp3")
-        os.remove("speech.mp3")
+    speak_text(text)
 
 
-
-def get_input() -> str:
-    return input("\nQuestion: ")
-
-human_tool = HumanInputRun(
-    input_func=get_input, 
-    prompt_func=lambda x: print(f"Polybrain: {x}"), 
-    description="Use this tool when you need information about the model to create. Do NOT ask how to do something.",
-    handle_validation_error=True)
+@tool
+def get_input(question: str) -> str:
+    """Gets the user's input from a question. Feel free to ask many questions.
+    Asking questions between steps is encouraged.
+    
+    Args:
+        question: The question to ask the user
+    """
+    speak_text(question)
+    return get_audio_input()
 
 @tool
 def code_tool(code: str) -> str:
@@ -67,4 +56,4 @@ def code_tool(code: str) -> str:
 
 
 
-tools = [human_tool, code_tool, speak_tool]
+tools = [get_input, code_tool, speak_tool]

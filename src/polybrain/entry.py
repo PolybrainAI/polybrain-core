@@ -5,6 +5,7 @@ The entry point to the polybrain modeler
 """
 
 from textwrap import dedent
+import time
 from uuid import uuid4
 import dotenv
 from langchain_openai import ChatOpenAI
@@ -19,20 +20,23 @@ from polybrain.code_runner.run import run_python_code
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain import hub
 
+from polybrain.audio import speak_text, get_audio_input
+
 # MODEL = "gpt-3.5-turbo-0125"
 MODEL = "gpt-4o"
 
 def load_prompt_str() -> str:
     """Loads the master prompt as a string"""
 
-    with open("resources/onpy_guide.md", 'r') as f:
+    with open("assets/onpy_guide.md", 'r') as f:
         guide = f.read()
 
     prompt_text = dedent("""
 
     You are a LLM powered mechanical engineer created by Polybrain--an AI company
     from San Francisco, California. Your name is Jacob, and your job is to create
-    3D models using OnShape--a popular CAD platform. 
+    3D models using OnShape--a popular CAD platform. You are intended to be friendly
+    and helpful. Don't be afraid to be cheerful!
                     
     As a large language model, you are unable to directly interact with the OnShape
     software. Instead, you will need to interact with OnShape through OnPy,
@@ -60,6 +64,9 @@ def load_prompt_str() -> str:
     ```
     Even though we don't include `import onpy` or the retrieval of the partstudio
     variable, we can safely assume that our code will still execute as intended.
+                         
+    Each time you run code, your previous code is saved. This allows you to run
+    small, individual chunks.
 
     OnPy's limited tools mean that all geometries created will be minimal and
     simple. For this reason, do not worry about the physical feasibility of the
@@ -72,7 +79,11 @@ def load_prompt_str() -> str:
     - Alluding to the manufacture or physical of the model
     - Asking for dimensions that were already provided
     - Asking if a model should be created (just make it)
-
+    - Referencing the fact you use the OnPy to create models.
+                         
+    Remember to:
+    - Perform Unit Conversions
+    - Explain your thought process
 
     TOOLS:
     ------
@@ -104,7 +115,9 @@ def load_prompt_str() -> str:
     You are NOT allowed to provide a final answer until the model has been created with the run_code tool.
                          
     You are encouraged to include as many Thoughts as possible. Once you have collected thoughts, you 
-    are also encouraged to share them with the user using the speak_tool.
+    are also encouraged to share them with the user using the speak_tool. Furthermore,
+    you are encouraged to write code in the Thought field before submitting it to the run_code
+    tool. It is best practice to compile all code into a final run_code call.
 
 
     Previous conversation history:
@@ -132,10 +145,13 @@ def entry():
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
     agent_executor.return_intermediate_steps = True
 
+    # time.sleep(4)
+
     while True:
 
 
-        user_input = "HUMAN: " + input("You: ")
+        print("Start speaking...")
+        user_input = "HUMAN: " + get_audio_input()
 
         if user_input.lower() in ("exit", "q"):
             break
@@ -164,6 +180,10 @@ def entry():
             maybe_python = parse_python_code(response["output"])
 
 
-        print("\nPolybrain:", response["output"])
+        response_text = response["output"]
+        speak_text(response_text)
+
+
+        print("\nPolybrain:", response_text)
         print("\n")
 
