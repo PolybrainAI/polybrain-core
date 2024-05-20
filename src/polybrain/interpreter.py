@@ -4,19 +4,20 @@ import json
 import sys
 import io
 import traceback
-import onpy 
+import onpy
+
 
 class DualStream(io.StringIO):
     """Streams output to STDOUT while recording stream"""
-    
+
     def __init__(self, original_stream):
         super().__init__()
         self.original_stream = original_stream
-    
+
     def write(self, s):
         super().write(s)
         self.original_stream.write(s)
-    
+
     def flush(self):
         super().flush()
         self.original_stream.flush()
@@ -30,31 +31,28 @@ class Interpreter:
         Args:
             document_id: The id of the document to target
         """
-  
+
         # Load onshape environment
         self.partstudio = onpy.get_document(document_id).get_partstudio()
         self.code_storage = "partstudio.wipe()"
 
-        
-
     def run_python_code(self, code: str) -> str:
         """Runs python code and returns output
-        
+
         Args:
             code: The python code to execute
-            
+
         Returns:
             A JSON string with stdout and stderr information
         """
-        
 
         # Create DualStream objects to capture and stream stdout and stderr
         original_stdout = sys.stdout
         original_stderr = sys.stderr
-        
+
         stdout_capture = DualStream(original_stdout)
         stderr_capture = DualStream(original_stderr)
-        
+
         # Redirect stdout and stderr
         sys.stdout = stdout_capture
         sys.stderr = stderr_capture
@@ -83,7 +81,9 @@ class Interpreter:
             stderr_content = stderr_capture.getvalue()
 
             # Return output
-            return json.dumps({"stdout": stdout_content, "stderr": stderr_content}, indent=4)
+            return json.dumps(
+                {"stdout": stdout_content, "stderr": stderr_content}, indent=4
+            )
         finally:
             # Reset stdout and stderr to their original state
             sys.stdout = original_stdout
@@ -93,9 +93,8 @@ class Interpreter:
             stdout_capture.close()
             stderr_capture.close()
 
-
     def clear_code_session(self) -> None:
         """Creates a new code session by wiping the code history and partstudio"""
-        
+
         self.partstudio.wipe()
         self.code_storage = ""

@@ -1,4 +1,4 @@
 from polybrain.entry import entry
-import os 
+import os
 
 os.chdir(os.path.dirname(__file__))

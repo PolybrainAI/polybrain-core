@@ -1,14 +1,16 @@
 from dataclasses import dataclass
 import re
 
+
 @dataclass
 class TokenContainer:
-    openai_token: str 
+    openai_token: str
     onshape_access_token: str
     onshape_secret_token: str
 
-def parse_python_code(response: str) -> str|None:
-    """Parses the python code out of a response from an LLM. Assumes markdown 
+
+def parse_python_code(response: str) -> str | None:
+    """Parses the python code out of a response from an LLM. Assumes markdown
     format.
 
     Args:
@@ -18,13 +20,13 @@ def parse_python_code(response: str) -> str|None:
         The Python code as a string, or None if nothing was enclosed.
     """
 
-    pattern = re.compile(r'```(?:python|py)\n(.*?)\n```', re.DOTALL)
-    
+    pattern = re.compile(r"```(?:python|py)\n(.*?)\n```", re.DOTALL)
+
     matches = re.findall(pattern, response)
-    
+
     # If we find any match return the joined string else return None
     if matches:
-        return '\n'.join(matches)
+        return "\n".join(matches)
     else:
         return None
 
