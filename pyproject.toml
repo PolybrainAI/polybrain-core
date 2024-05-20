@@ -26,7 +26,11 @@ dependencies = [
     "prettytable",
     "langchain",
     "langchain-openai",
-    "python-dotenv"
+    "python-dotenv",
+    "langchainhub",
+    "playsound",
+    "PyObjC",
+    "Levenshtein"
 ]
 [project.optional-dependencies]
 dev = [

@@ -1,3 +1,3 @@
-from polybrain import entry
+from polybrain.entry import entry
 
 entry()

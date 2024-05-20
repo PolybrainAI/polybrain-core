@@ -436,6 +436,8 @@ Sometimes, features will result in a new part. For instance, when you extrude a 
 We will often want to reference this part so that we can query it's faces and entities to create even more complex geometries.
 
 To get the part(s) created by a feature, you can run the `.get_created_parts()` function. This returns a list of Part objects.
+In the common scenario in which you want to query the items on an Extrude/Loft/etc., you should call `extrude.get_created_parts()[0].faces`, 
+then add whichever query is wanted.
 
 If you want to get a list of all parts in a partstudio, you can run `partstudio.parts`. This returns an object used to interface
 with parts. If you want to get an idea of what parts are available, you can run:
