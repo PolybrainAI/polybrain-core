@@ -4,7 +4,8 @@ import re
 @dataclass
 class TokenContainer:
     openai_token: str 
-    onshape_token: str
+    onshape_access_token: str
+    onshape_secret_token: str
 
 def parse_python_code(response: str) -> str|None:
     """Parses the python code out of a response from an LLM. Assumes markdown 

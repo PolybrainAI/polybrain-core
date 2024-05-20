@@ -5,6 +5,7 @@ Client class to polybrain
 """
 
 import json
+from textwrap import dedent
 from loguru import logger
 from pathlib import Path
 import dotenv
@@ -13,26 +14,33 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain.memory import ConversationBufferMemory
 
+from openai import OpenAI
 from polybrain.util import TokenContainer, parse_python_code
-from polybrain.tools import tools
-from polybrain.audio import get_audio_input, speak_text
+from polybrain.tools import ToolContainer
 from polybrain.interpreter import Interpreter
+from polybrain.audio import Audio
 
 class Client:
 
     SETTINGS_PATH = Path("../../polybrain_settings.json")
 
     def __init__(self, cheap_mode: bool = False) -> None:
-        self.api_keys = self.resolve_tokens()
+        self._api_keys = self.resolve_tokens()
         self.settings = self.load_settings()
 
-        model = self.settings["model_cheap"] if cheap_mode else self.settings["model_main"]
+        self.audio = Audio(self)
+        self.interpreter = Interpreter(self.settings["onshape_document_id"])
+        self.tools = ToolContainer(self)
+
+        model = self.settings["model_cheap"] if self.settings["cheap_mode"] else self.settings["model_main"]
 
         self.llm = ChatOpenAI(model=model, temperature=self.settings["temperature"])
+        self.openai_client = OpenAI()
 
-        agent = create_react_agent(self.llm, tools, self.load_prompt()) 
-        self.agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True) # type: ignore
+        agent = create_react_agent(self.llm, self.tools.tools, self.load_prompt()) 
+        self.agent_executor = AgentExecutor(agent=agent, tools=self.tools.tools, verbose=True, handle_parsing_errors=True) # type: ignore
         self.memory = ConversationBufferMemory()
+
 
 
     @staticmethod
@@ -54,59 +62,92 @@ class Client:
             env_file.open("w").close()
 
         openai_api_key = dotenv.get_key(env_file, "OPENAI_API_KEY")
-        onshape_api_key = dotenv.get_key(env_file, "ONSHAPE_API_KEY")
+        onshape_api_secret_key = dotenv.get_key(env_file, "ONSHAPE_DEV_SECRET")
+        onshape_api_access_key = dotenv.get_key(env_file, "ONSHAPE_DEV_ACCESS")
 
-        if openai_api_key is None:
-            logger.warning(
-                "\n\nThere is no OpenAI API key in your .env file.\n"
-                "Navigate to https://platform.openai.com/api-keys to get your API key.\n"
-                "You can paste your key below, or add it to your .env file manually."
-                )
-            
-            key_accepted = False
-
-            while not key_accepted:
-                api_key_input = input("> ").strip()
+        try:
+            if openai_api_key is None:
+                logger.warning(
+                    "\n\nThere is no OpenAI API key in your .env file.\n"
+                    "Navigate to https://platform.openai.com/api-keys to get your API key.\n"
+                    "You can paste your key below, or add it to your .env file manually."
+                    )
                 
-                if len(api_key_input) == 51:
-                    key_accepted = True 
-                else:
-                    logger.warning("Your OpenAI API key should be 51 characters long. "
-                                   "Try again, or manually add to the .env file")
+                key_accepted = False
 
-            
-            with env_file.open("a") as f:
-                f.write(f"\nOPENAI_API_KEY =\"{api_key_input}\"")
+                while not key_accepted:
+                    api_key_input = input("> ").strip()
+                    
+                    if len(api_key_input) == 51:
+                        key_accepted = True 
+                    else:
+                        logger.warning("Your OpenAI API key should be 51 characters long. "
+                                    "Try again, or manually add to the .env file")
 
-            openai_api_key = api_key_input
-
-
-
-        if onshape_api_key is None:
-            logger.warning(
-                "\n\nThere is no OnShape API key in your .env file.\n"
-                "Navigate to https://dev-portal.onshape.com/keys to get your API key.\n"
-                "You can paste your key below, or add it to your .env file manually."
-                )
-            
-            key_accepted = False
-
-            while not key_accepted:
-                api_key_input = input("> ").strip()
                 
-                if len(api_key_input) == 51:
-                    key_accepted = True 
-                else:
-                    logger.warning("Your OpenAI API key should be 51 characters long. "
-                                   "Try again, or manually add to the .env file")
+                with env_file.open("a") as f:
+                    f.write(f"\nOPENAI_API_KEY =\"{api_key_input}\"")
 
-            
-            with env_file.open("a") as f:
-                f.write(f"\nONSHAPE_API_KEY =\"{api_key_input}\"")
+                openai_api_key = api_key_input
 
-            onshape_api_key = api_key_input
 
-        return TokenContainer(openai_api_key, onshape_api_key)
+
+            if onshape_api_secret_key is None:
+                logger.warning(
+                    "\n\nThere is no OnShape secret key in your .env file.\n"
+                    "Navigate to https://dev-portal.onshape.com/keys to get your API secret key.\n"
+                    "For OnShape, you will need to provide an Access key and a Secret key."
+                    "You can paste your secret key below, or add it to your .env file manually."
+                    )
+                
+                key_accepted = False
+
+                while not key_accepted:
+                    api_key_input = input("> ").strip()
+                    
+                    if len(api_key_input) == 48:
+                        key_accepted = True 
+                    else:
+                        logger.warning("Your OnShape secret key should be 48 characters long. "
+                                    "Try again, or manually add to the .env file")
+
+                
+                with env_file.open("a") as f:
+                    f.write(f"\nONSHAPE_DEV_SECRET =\"{api_key_input}\"")
+
+                onshape_api_secret_key = api_key_input
+
+            if onshape_api_access_key is None:
+                logger.warning(
+                    "\n\nThere is no OnShape access key in your .env file.\n"
+                    "Navigate to https://dev-portal.onshape.com/keys to get your API access key.\n"
+                    "For OnShape, you will need to provide an Access key and a Secret key."
+                    "You can paste your access key below, or add it to your .env file manually."
+                    )
+                
+                key_accepted = False
+
+                while not key_accepted:
+                    api_key_input = input("> ").strip()
+                    
+                    if len(api_key_input) == 24:
+                        key_accepted = True 
+                    else:
+                        logger.warning("Your OnShape access key should be 24 characters long. "
+                                    "Try again, or manually add to the .env file")
+
+                
+                with env_file.open("a") as f:
+                    f.write(f"\nONSHAPE_DEV_ACCESS =\"{api_key_input}\"")
+
+                onshape_api_access_key = api_key_input
+
+        except KeyboardInterrupt:
+            logger.info("You can add credentials directly to a .env file to avoid this dialogue")
+            exit(0)
+
+        dotenv.load_dotenv(env_file)
+        return TokenContainer(openai_api_key, onshape_api_access_key, onshape_api_secret_key)
     
     @classmethod
     def load_settings(cls) -> dict:
@@ -155,7 +196,7 @@ class Client:
         if self.settings["voice_mode"]:
             logger.info("Start speaking...")
             try:
-                return get_audio_input()
+                return self.audio.get_audio_input()
             except KeyboardInterrupt:
                 logger.info("goodbye")
                 exit(0)
@@ -171,7 +212,7 @@ class Client:
         """
 
         if self.settings["voice_mode"]:
-            speak_text(output)
+            self.audio.speak_text(output)
 
         logger.info("Jacob:")
         print(f"> {output}")
@@ -180,7 +221,21 @@ class Client:
     def run(self) -> None:
         """Runs the polybrain LLM loop"""
 
-        interpreter = Interpreter(self.settings["onshape_document_id"])
+        logger.info(dedent("""
+
+            =================================
+                           
+                                    _.--'"'.
+                                   (  ( (   )
+            Welcome to PolyBrain  (o)_    ) )
+                                       (o)_.'
+                                         )/       
+                                   
+            =================================
+                           
+            To start, ask a question. Jacob is your assistant
+            
+                           """))
 
         while True:
 
@@ -206,7 +261,7 @@ class Client:
                     "\n ---- ---------------- -----\n"
                     )
 
-                output = interpreter.run_python_code(maybe_python)
+                output = self.interpreter.run_python_code(maybe_python)
 
                 response = response = self.agent_executor.invoke(
                 {"input": f"SYSTEM: {output}", "chat_history": self.memory.chat_memory.messages},
@@ -216,7 +271,7 @@ class Client:
 
 
             response_text = response["output"]
-            speak_text(response_text)
+            self.audio.speak_text(response_text)
 
 
             print("\nPolybrain:", response_text)
