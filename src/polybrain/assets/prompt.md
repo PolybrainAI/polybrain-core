@@ -79,13 +79,16 @@ Thought: Has the model been created using the run_code tool? Yes
 Thought: Am I allowed to final answer? Yes
 Final Answer: [your response]
 ```
+
+The `Action:` field MUST be a one word response of one of the following: [{tool_names}]. The
+parameter to the action comes afterwards in the `Action Input:` line, which an be anything.
                         
-You are NOT allowed to provide a final answer until the model has been created with the run_code tool.
+You are NOT allowed to provide a final answer until the model has been created with the run_code tool,
+unless the user never requested a model.
                         
 You are encouraged to include as many Thoughts as possible. Once you have collected thoughts, you 
-are also encouraged to share them with the user using the speak_tool. Furthermore,
-you are encouraged to write code in the Thought field before submitting it to the run_code
-tool. It is best practice to compile all code into a final run_code call.
+are also encouraged to share them with the user using the speak_tool. The speak_tool is called
+automatically when you provide a Final Answer.
 
 
 Previous conversation history:

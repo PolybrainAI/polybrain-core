@@ -29,7 +29,8 @@ dependencies = [
     "python-dotenv",
     "langchainhub",
     "playsound",
-    "PyObjC"
+    "PyObjC",
+    "Levenshtein"
 ]
 [project.optional-dependencies]
 dev = [

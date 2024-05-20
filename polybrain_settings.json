@@ -1,8 +1,9 @@
 {
-    "model_cheap": "gpt-3.5-turbo-0125",
+    "model_cheap": "gpt-3.5-turbo",
     "model_main" : "gpt-4o",
-    "cheap_mode" : true,
-    "voice_mode": false,
+    "cheap_mode" : false,
+    "voice_mode": true,
     "temperature": 0.2,
-    "onshape_document_id": "d69e6ca6abae839540c3da27" 
+    "onshape_document_id": "d69e6ca6abae839540c3da27",
+    "tts_voice": "echo"
 }

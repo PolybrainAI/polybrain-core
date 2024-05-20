@@ -4,6 +4,7 @@ Client class to polybrain
 
 """
 
+from functools import cache
 import json
 from textwrap import dedent
 from loguru import logger
@@ -176,6 +177,7 @@ class Client:
         return ChatPromptTemplate.from_template(prompt_template)
     
     @staticmethod
+    @cache
     def load_onpy_guide() -> str:
         """Loads the OnPy guide as a string"""
 

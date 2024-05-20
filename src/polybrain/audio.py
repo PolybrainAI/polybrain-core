@@ -10,6 +10,7 @@ import wave
 import pyaudio
 import playsound
 import numpy as np
+import Levenshtein
 from loguru import logger
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,7 @@ class Audio:
 
     def __init__(self, client: "Client") -> None:
         self.client = client
+        self.tts_log: list[str] = []
 
     @staticmethod
     def is_silent(data_chunk, threshold):
@@ -147,6 +149,12 @@ class Audio:
             text: The text to speak
         """
 
+        # prevent duplicate messages
+        if self.tts_log:
+            distance = Levenshtein.distance(self.tts_log[0], text)
+            if distance < 10:
+                return
+
         files = []
 
         for i, segment in enumerate(text.split("\n")):
@@ -156,7 +164,7 @@ class Audio:
 
             with self.client.openai_client.audio.speech.with_streaming_response.create(
             model="tts-1",
-            voice="alloy",
+            voice=self.client.settings["tts_voice"],
             input=segment,
             ) as response:
                 file = f"speech[{i}].mp3"

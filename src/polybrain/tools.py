@@ -19,8 +19,10 @@ class ToolContainer:
     def __init__(self, client: "Client") -> None:
         self.client = client
 
+    @property
+    def tools(self) -> Sequence:
+        """A list of the available tools"""
 
-    def get_speak_tool(self) -> Callable:
         @tool
         def speak_tool(text: str) -> None:
             """Speak a message to the user. Let them know what you are doing.
@@ -31,9 +33,6 @@ class ToolContainer:
 
             self.client.send_output(text)
 
-        return speak_tool
-
-    def get_input_tool(self) -> Callable:
         @tool
         def get_input(question: str) -> str:
             """Gets the user's input from a question. Feel free to ask many questions.
@@ -45,10 +44,6 @@ class ToolContainer:
             self.client.send_output(question)
             return self.client.get_input()
         
-        return get_input
-    
-    def get_code_tool(self) -> Callable:
-
         @tool
         def code_tool(code: str) -> str:
             """Runs Python code and returns the STDOUT and STDERR. Assumes that a 
@@ -69,11 +64,5 @@ class ToolContainer:
                 code = unwrap(parse_python_code(code), default=code.replace("```", ""))
 
             return self.client.interpreter.run_python_code(code)
-        
-        return code_tool
-    
-    @property
-    def tools(self) -> Sequence:
-        """A list of the available tools"""
 
-        return [self.get_code_tool(), self.get_input_tool(), self.get_speak_tool()]
+        return [speak_tool, get_input, code_tool]
