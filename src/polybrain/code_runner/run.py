@@ -8,6 +8,7 @@ import traceback
 # Load onshape environment
 import onpy 
 partstudio = onpy.get_document("d69e6ca6abae839540c3da27").get_partstudio()
+partstudio.wipe()
 
 class DualStream(io.StringIO):
     def __init__(self, original_stream):
@@ -23,7 +24,7 @@ class DualStream(io.StringIO):
         self.original_stream.flush()
 
 
-code_storage = ""
+code_storage = "partstudio.wipe()"
 
 def run_python_code(code):
     global code_storage
@@ -44,6 +45,7 @@ def run_python_code(code):
         exec(f"{code_storage}\n{code}", globals(), locals())
         # Retrieve stdout content
         stdout_content = stdout_capture.getvalue()
+        code_storage = f"{code_storage}\n{code}"
         return json.dumps({"stdout": stdout_content, "stderr": None}, indent=4)
     except Exception as e:
         # Capture the exception traceback
@@ -59,8 +61,6 @@ def run_python_code(code):
         # Close the StringIO objects
         stdout_capture.close()
         stderr_capture.close()
-
-        code_storage = f"{code_storage}\n{code}"
 
 
 def clear_code_session():
