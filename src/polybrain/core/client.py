@@ -17,10 +17,10 @@ from langchain.memory import ConversationBufferMemory
 
 from openai import OpenAI
 import requests
-from polybrain.util import TokenContainer, parse_python_code
-from polybrain.tools import ToolContainer
-from polybrain.interpreter import Interpreter
-from polybrain.audio import Audio
+from polybrain.core.util import TokenContainer, parse_python_code
+from polybrain.core.tools import ToolContainer
+from polybrain.core.interpreter import Interpreter
+from polybrain.core.audio import Audio
 
 
 class Client:

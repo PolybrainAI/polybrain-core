@@ -7,11 +7,11 @@ Tools for the LangChain agent are defined here
 from langchain.tools import tool
 from typing import TYPE_CHECKING, Callable, Sequence
 
-from polybrain.util import parse_python_code, unwrap
+from polybrain.core.util import parse_python_code, unwrap
 
 
 if TYPE_CHECKING:
-    from polybrain.client import Client
+    from polybrain.core.client import Client
 
 
 class ToolContainer:

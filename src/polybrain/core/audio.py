@@ -14,7 +14,7 @@ from loguru import logger
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from polybrain.client import Client
+    from polybrain.core.client import Client
 
 
 class Audio:

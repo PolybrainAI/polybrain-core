@@ -5,7 +5,7 @@ The entry point to the polybrain cli interface
 """
 
 import argparse
-from polybrain.client import Client
+from polybrain.core.client import Client
 
 
 def entry():
