@@ -5,16 +5,39 @@ The entry point to the polybrain cli interface
 """
 
 import argparse
-from polybrain.core.client import Client
+from loguru import logger
+import uvicorn
 
+from polybrain.api.host import app
+from polybrain.core.client import Client
+from polybrain.api.auth import ApiAuthManager
 
 def entry():
 
     parser = argparse.ArgumentParser(prog="polybrain", description="An AI powered LLM")
 
-    client = Client()
+    parser.add_argument("-c", "--client", action="store_true")
 
-    client.run()
+    args = parser.parse_args()
+
+    if args.client:
+        logger.info("Running in client mode")
+        client = Client()
+        client.run()
+
+    else:
+        logger.info("Running in API mode")
+
+        auth_manager = ApiAuthManager()
+
+        uvicorn.run(
+            app, 
+            host="localhost", 
+            port=30000,
+            # ssl_keyfile=str(auth_manager.key_file),
+            # ssl_certfile=str(auth_manager.cert_file)
+            )
+
 
 
 # from textwrap import dedent

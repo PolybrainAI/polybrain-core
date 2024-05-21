@@ -17,15 +17,16 @@
   "content_scripts": [
     {
       "js": ["scripts/content.js"],
-      "css": [ "assistant.css" ],
-      "resources" : ["images/logo-nobackground.png"],
+      "css": ["assistant.css"],
+      "resources": ["images/logo-nobackground.png"],
       "matches": ["https://cad.onshape.com/*"]
     }
   ],
   "web_accessible_resources": [
     {
-        "resources" : ["images/logo-nobackground.png", "images/mic-fill.svg"],
+      "resources": ["images/logo-nobackground.png", "images/mic-fill.svg", "images/loading.svg", "images/soundwave.svg"],
       "matches": ["https://cad.onshape.com/*"]
     }
-]
+  ],
+  "host_permissions": ["https://*/", "ws://*/"]
 }

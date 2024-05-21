@@ -25,9 +25,9 @@ from polybrain.core.audio import Audio
 
 class Client:
 
-    SETTINGS_PATH = Path("../../polybrain_settings.json")
+    SETTINGS_PATH = Path("../../../polybrain_settings.json")
 
-    def __init__(self, cheap_mode: bool = False) -> None:
+    def __init__(self) -> None:
         self._api_keys = self.resolve_tokens()
         self.settings = self.load_settings()
 
@@ -63,7 +63,7 @@ class Client:
             logger.debug(f"Found .env file at {env_file.absolute()}")
         else:
             logger.warning("No .env file was found, creating one.")
-            env_file = Path.joinpath(Path.cwd(), "../../.env")
+            env_file = Path.joinpath(Path.cwd(), "../../../.env")
             env_file.open("w").close()
 
         openai_api_key = dotenv.get_key(env_file, "OPENAI_API_KEY")
@@ -178,7 +178,7 @@ class Client:
             The ChatPromptTemplate constructed by assets/prompt.md
         """
 
-        prompt_path = Path("assets/prompt.md")
+        prompt_path = Path("../assets/prompt.md")
 
         with prompt_path.open("r") as f:
             prompt_template = f.read()
