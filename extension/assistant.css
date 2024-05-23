@@ -1,0 +1,31 @@
+
+.polybrain-assistant {
+    width: 70px;
+    height: 70px;
+    background-color: #373d42;
+    border-radius: 50%;
+    position: fixed;
+    bottom: 80px;
+    right: 30px;
+    cursor: pointer;
+    z-index: 1000;
+    transition: 0.3s;
+    border: none;
+}
+
+.polybrain-assistant:hover {
+    transform: scale(1.05);
+}
+
+.polybrain-assistant:disabled {
+    transform: scale(0.95);
+}
+
+.polybrain-assistant img {
+    width: 70px;
+    height: 70px;
+    transition: 0.3s;
+    position: relative;
+    bottom: 1px;
+    right: 6px;
+}

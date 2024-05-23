@@ -5,16 +5,55 @@ The entry point to the polybrain cli interface
 """
 
 import argparse
-from polybrain.client import Client
+import os
+import signal
+import sys
+import threading
+import time
+from loguru import logger
+import uvicorn
+
+from polybrain.api.host import app
+from polybrain.core.client import Client
+from polybrain.api.auth import ApiAuthManager
+
+
+def run_server(app):
+    uvicorn.run(app, host="localhost", port=30000)
+
+def shutdown_server():
+    print("Ctrl+X pressed. Shutting down the server...")
+    os._exit(0)
+
 
 
 def entry():
 
     parser = argparse.ArgumentParser(prog="polybrain", description="An AI powered LLM")
 
-    client = Client()
+    parser.add_argument("-c", "--client", action="store_true")
 
-    client.run()
+    args = parser.parse_args()
+
+    if args.client:
+        logger.info("Running in client mode")
+        client = Client()
+        client.run()
+
+    else:
+        logger.info("Running in API mode")
+
+
+
+        server_thread = threading.Thread(target=run_server, args=[app], daemon=True)
+        server_thread.start()
+
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("Keyboard Interrupt")
+            shutdown_server()
 
 
 # from textwrap import dedent

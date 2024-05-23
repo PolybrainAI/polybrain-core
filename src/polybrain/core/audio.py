@@ -14,7 +14,7 @@ from loguru import logger
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from polybrain.client import Client
+    from polybrain.core.client import Client
 
 
 class Audio:
@@ -49,7 +49,7 @@ class Audio:
         Returns:
             The Bytes of the audio mp3
         """
-        playsound.playsound("assets/start-record.mp3")
+        playsound.playsound("../assets/start-record.mp3")
 
         p = pyaudio.PyAudio()
         stream = p.open(
@@ -84,7 +84,7 @@ class Audio:
                     break
 
         logger.debug("Recording stopped.")
-        playsound.playsound("assets/end-record.mp3")
+        playsound.playsound("../assets/end-record.mp3")
 
         stream.stop_stream()
         stream.close()

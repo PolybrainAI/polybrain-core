@@ -6,6 +6,7 @@ Client class to polybrain
 
 from functools import cache
 import json
+import re
 from textwrap import dedent
 from loguru import logger
 from pathlib import Path
@@ -17,22 +18,26 @@ from langchain.memory import ConversationBufferMemory
 
 from openai import OpenAI
 import requests
-from polybrain.util import TokenContainer, parse_python_code
-from polybrain.tools import ToolContainer
-from polybrain.interpreter import Interpreter
-from polybrain.audio import Audio
+from polybrain.core.util import TokenContainer, parse_python_code
+from polybrain.core.tools import ToolContainer
+from polybrain.core.interpreter import Interpreter
+from polybrain.core.audio import Audio
 
 
 class Client:
 
-    SETTINGS_PATH = Path("../../polybrain_settings.json")
+    SETTINGS_PATH = Path("../../../polybrain_settings.json")
 
-    def __init__(self, cheap_mode: bool = False) -> None:
+    def __init__(self, document_id: str|None = None) -> None:
         self._api_keys = self.resolve_tokens()
         self.settings = self.load_settings()
 
+
+        if document_id is None:
+            document_id = self.settings["onshape_document_id"]
+
         self.audio = Audio(self)
-        self.interpreter = Interpreter(self.settings["onshape_document_id"])
+        self.interpreter = Interpreter(document_id) # type: ignore
         self.tools = ToolContainer(self)
 
         model = (
@@ -45,7 +50,7 @@ class Client:
         self.openai_client = OpenAI()
 
         agent = create_react_agent(self.llm, self.tools.tools, self.load_prompt())
-        self.agent_executor = AgentExecutor(agent=agent, tools=self.tools.tools, verbose=True, handle_parsing_errors=True)  # type: ignore
+        self.agent_executor = AgentExecutor(agent=agent, tools=self.tools.tools, verbose=True) # type: ignore
         self.memory = ConversationBufferMemory()
 
     @staticmethod
@@ -63,7 +68,7 @@ class Client:
             logger.debug(f"Found .env file at {env_file.absolute()}")
         else:
             logger.warning("No .env file was found, creating one.")
-            env_file = Path.joinpath(Path.cwd(), "../../.env")
+            env_file = Path.joinpath(Path.cwd(), "../../../.env")
             env_file.open("w").close()
 
         openai_api_key = dotenv.get_key(env_file, "OPENAI_API_KEY")
@@ -178,7 +183,7 @@ class Client:
             The ChatPromptTemplate constructed by assets/prompt.md
         """
 
-        prompt_path = Path("assets/prompt.md")
+        prompt_path = Path("../assets/prompt.md")
 
         with prompt_path.open("r") as f:
             prompt_template = f.read()

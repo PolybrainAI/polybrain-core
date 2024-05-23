@@ -2,3 +2,5 @@
 *.pyc
 .env
 *.mp3
+*.DS_Store
+keys/

@@ -30,7 +30,10 @@ dependencies = [
     "langchainhub",
     "playsound",
     "PyObjC",
-    "Levenshtein"
+    "Levenshtein",
+    "fastapi",
+    "uvicorn",
+    "uvicorn[standard]",
 ]
 [project.optional-dependencies]
 dev = [
