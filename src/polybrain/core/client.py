@@ -6,6 +6,7 @@ Client class to polybrain
 
 from functools import cache
 import json
+import re
 from textwrap import dedent
 from loguru import logger
 from pathlib import Path
@@ -27,12 +28,16 @@ class Client:
 
     SETTINGS_PATH = Path("../../../polybrain_settings.json")
 
-    def __init__(self) -> None:
+    def __init__(self, document_id: str|None = None) -> None:
         self._api_keys = self.resolve_tokens()
         self.settings = self.load_settings()
 
+
+        if document_id is None:
+            document_id = self.settings["onshape_document_id"]
+
         self.audio = Audio(self)
-        self.interpreter = Interpreter(self.settings["onshape_document_id"])
+        self.interpreter = Interpreter(document_id) # type: ignore
         self.tools = ToolContainer(self)
 
         model = (
@@ -45,7 +50,7 @@ class Client:
         self.openai_client = OpenAI()
 
         agent = create_react_agent(self.llm, self.tools.tools, self.load_prompt())
-        self.agent_executor = AgentExecutor(agent=agent, tools=self.tools.tools, verbose=True, handle_parsing_errors=True)  # type: ignore
+        self.agent_executor = AgentExecutor(agent=agent, tools=self.tools.tools, verbose=True) # type: ignore
         self.memory = ConversationBufferMemory()
 
     @staticmethod

@@ -26,7 +26,7 @@ class Session:
 
         self.document_id = document_id
 
-        self.client = Client()
+        self.client = Client(document_id)
         self._websocket: WebSocket|None = None
 
     @property
