@@ -1,11 +1,21 @@
+use std::collections::HashMap;
+
 use serde::Serialize;
+use serde_json::Value;
 
 pub trait SocketError {
     fn serialize_string(&self) -> String
     where
         Self: Serialize,
     {
-        serde_json::to_string_pretty(&self).expect("Failed to serialize error type")
+
+        let json_str = serde_json::to_string(&self).unwrap();
+        let v: Value = serde_json::from_str(&json_str).unwrap();
+        let mut map: HashMap<String, String> = serde_json::from_value(v).unwrap();
+        map.insert("error_type".to_owned(), Self::name());
+
+        serde_json::to_string_pretty(&map).unwrap()
+
     }
     fn name() -> String;
 }

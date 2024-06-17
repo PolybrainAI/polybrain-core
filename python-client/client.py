@@ -26,7 +26,6 @@ class Client:
             exit()
         else:
             print("info: made connection with server")
-            time.sleep(4)
 
 
     def receive_message[T](self, type: type[T]) -> T:
@@ -53,7 +52,7 @@ class Client:
     def run(self):
 
         # Complete auth handshake with server
-        self.send_message(server_types.SessionStartRequest(user_token="placeholder"))
+        self.send_message(server_types.SessionStartRequest(user_token=os.environ["TEST_USER_TOKEN"]))
         print("info: sent session start request")
 
         response = self.receive_message(server_types.SessionStartResponse)

@@ -49,7 +49,7 @@ async fn start_execution_loop(socket: TcpStream) -> Result<()> {
     println!("waiting for incoming message...");
     let incoming: SessionStartRequest = wait_for_message(&mut framed).await?;
 
-    let credentials: ApiCredentials = match fetch_user_credentials(&incoming.user_token) {
+    let credentials: ApiCredentials = match fetch_user_credentials(&incoming.user_token).await {
         Ok(c) => c,
         Err(message) => {
             send_error(&mut framed, AuthenticationError { message }).await?;

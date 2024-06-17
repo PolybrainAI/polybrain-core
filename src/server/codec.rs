@@ -94,7 +94,10 @@ pub async fn send_error<T>(socket: &mut FramedSocket, error: T) -> io::Result<()
 where
     T: SocketError + Serialize,
 {
-    println!("sending error:");
-    send_message(socket, error).await?;
+    let payload_string = &error.serialize_string();
+    println!("sending error:\n{}", payload_string);
+    socket
+        .send(payload_string)
+        .await?;
     Ok(())
 }

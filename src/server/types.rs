@@ -42,3 +42,29 @@ pub struct ApiCredentials {
     pub onshape_access_key: String,
     pub onshape_secret_key: String,
 }
+
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserDocumentCredentials {
+    pub onshape_access: Option<String>,
+    pub onshape_secret: Option<String>,
+    pub open_ai_api: Option<String>,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserDocument {
+    pub user_id: String,
+    pub email: String,
+    pub credentials: UserDocumentCredentials,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UserInfo {
+    pub created_at: String,
+    pub email: String,
+    pub name: String,
+    pub user_id: String,
+    pub username: Option<String>,
+    pub last_ip: String,
+    pub last_login: String,
+    pub given_name: Option<String>,
+}
