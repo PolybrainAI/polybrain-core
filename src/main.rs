@@ -1,16 +1,16 @@
-use std::io::Result;
-use server::dispatch::dispatch_incoming;
-use tokio::net::TcpListener;
 use dotenv::dotenv;
+use server::dispatch::dispatch_incoming;
+use std::io::Result;
+use tokio::net::TcpListener;
 use util::get_dotenv;
 
-mod util;
+mod chain;
 mod server;
+mod util;
 
 #[tokio::main]
 
-async fn main() -> Result<()>{
-
+async fn main() -> Result<()> {
     dotenv().ok();
 
     let address = format!("{}:{}", get_dotenv("HOST_NAME"), get_dotenv("HOST_PORT"));

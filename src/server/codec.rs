@@ -1,10 +1,10 @@
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use bytes::{BufMut, BytesMut};
+use futures::{SinkExt, TryStreamExt};
+use serde::{de::DeserializeOwned, Serialize};
+use std::io;
+
 use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Encoder, Framed};
-use bytes::{Buf, BufMut, BytesMut};
-use std::io;
-use tokio::io::AsyncWriteExt;
-use futures::{SinkExt, StreamExt, TryStreamExt};
 
 use super::error::{RequestError, SocketError};
 
@@ -45,22 +45,35 @@ impl Encoder<&str> for MessageCodec {
 pub type FramedSocket = Framed<TcpStream, MessageCodec>;
 
 /// Waits for an incoming message of a certain type
-pub async fn wait_for_message<T: DeserializeOwned + Serialize>(socket: &mut FramedSocket) -> io::Result<T>{
+pub async fn wait_for_message<T: DeserializeOwned + Serialize>(
+    socket: &mut FramedSocket,
+) -> io::Result<T> {
     let mut next_message = socket.try_next().await?;
 
-    while next_message.is_none(){
+    while next_message.is_none() {
         next_message = socket.try_next().await?;
     }
     match serde_json::from_str(&next_message.clone().unwrap()) {
         Ok(model) => {
-            println!("got incoming message:\n{}", serde_json::to_string_pretty(&model)?);
-            Ok(model)},
+            println!(
+                "got incoming message:\n{}",
+                serde_json::to_string_pretty(&model)?
+            );
+            Ok(model)
+        }
         Err(err) => {
-            println!("Unable to deserialize the incoming message:\n{}", next_message.unwrap());
-            send_error(socket, RequestError{
-                message: format!("Bad Request Format: {}", err),
-                operation: "Deserialize Request".to_owned()
-            }).await?;
+            println!(
+                "Unable to deserialize the incoming message:\n{}",
+                next_message.unwrap()
+            );
+            send_error(
+                socket,
+                RequestError {
+                    message: format!("Bad Request Format: {}", err),
+                    operation: "Deserialize Request".to_owned(),
+                },
+            )
+            .await?;
             Err(err.into())
         }
     }
@@ -70,12 +83,17 @@ pub async fn wait_for_message<T: DeserializeOwned + Serialize>(socket: &mut Fram
 pub async fn send_message<T: Serialize>(socket: &mut FramedSocket, payload: T) -> io::Result<()> {
     let payload_string = serde_json::to_string_pretty(&payload)?;
     println!("sending message:\n{payload_string}");
-    socket.send(serde_json::to_string_pretty(&payload)?.as_str()).await?;
+    socket
+        .send(serde_json::to_string_pretty(&payload)?.as_str())
+        .await?;
     Ok(())
 }
 
 /// Sends an error response
-pub async fn send_error<T>(socket: &mut FramedSocket, error: T) -> io::Result<()> where T: SocketError + Serialize {
+pub async fn send_error<T>(socket: &mut FramedSocket, error: T) -> io::Result<()>
+where
+    T: SocketError + Serialize,
+{
     println!("sending error:");
     send_message(socket, error).await?;
     Ok(())

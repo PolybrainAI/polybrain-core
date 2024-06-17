@@ -1,5 +1,5 @@
-pub mod dispatch;
-mod types;
 mod auth;
-mod error;
 mod codec;
+pub mod dispatch;
+mod error;
+pub mod types;

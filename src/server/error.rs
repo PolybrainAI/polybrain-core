@@ -1,8 +1,10 @@
 use serde::Serialize;
 
-
 pub trait SocketError {
-    fn serialize_string(&self) -> String where Self: Serialize {
+    fn serialize_string(&self) -> String
+    where
+        Self: Serialize,
+    {
         serde_json::to_string_pretty(&self).expect("Failed to serialize error type")
     }
     fn name() -> String;
@@ -29,7 +31,6 @@ impl SocketError for RequestError {
     }
 }
 
-
 #[derive(Serialize)]
 pub struct InternalError {
     pub message: String,
@@ -39,6 +40,3 @@ impl SocketError for InternalError {
         "InternalError".to_string()
     }
 }
-
-
-
