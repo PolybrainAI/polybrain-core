@@ -1,1 +1,5 @@
 archive/
+/target
+*.pyc
+.vscode/settings.json
+.env
