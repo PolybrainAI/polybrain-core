@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 pub const ONSHAPE_API: &str = "https://cad.onshape.com/api/v6";
 pub const OPENAI_API: &str = "https://api.openai.com/v1";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SessionStartRequest {
     pub user_token: String,
     pub onshape_document_id: String,
@@ -14,7 +14,7 @@ pub struct SessionStartResponse {
     pub session_id: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct UserPromptInitial {
     pub contents: String,
 }
@@ -24,7 +24,7 @@ pub struct UserInputQuery {
     pub query: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct UserInputResponse {
     pub response: String,
 }

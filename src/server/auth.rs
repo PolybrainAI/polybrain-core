@@ -111,8 +111,7 @@ pub async fn fetch_user_id(user_token: &str) -> Result<String, Box<dyn Error>> {
         .get("https://polybrain.xyz/auth0/user-data")
         .header("Cookie", format!("polybrain-session={user_token}"))
         .send()
-        .await
-        .or_else(|err| Err(Box::new(err)))?;
+        .await.map_err(Box::new)?;
 
     if res.status().is_success() {
         let user_info: UserInfo = serde_json::from_str(&res.text().await.unwrap())
@@ -123,7 +122,7 @@ pub async fn fetch_user_id(user_token: &str) -> Result<String, Box<dyn Error>> {
             "polybrain-server request failed with body:\n{}",
             res.text().await.unwrap()
         );
-        return Err(Box::from("Failed to authenticate using user token"));
+        Err(Box::from("Failed to authenticate using user token"))
     }
 }
 

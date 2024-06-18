@@ -2,6 +2,8 @@ use dotenv::dotenv;
 use server::dispatch::dispatch_incoming;
 use std::io::Result;
 use tokio::net::TcpListener;
+
+
 use util::get_dotenv;
 
 mod chain;
@@ -21,7 +23,7 @@ async fn main() -> Result<()> {
     loop {
         println!("waiting for incoming connection...");
         let (socket, _) = listener.accept().await?;
-        println!("dispatching incoming connection: {:?}", socket);
+
         dispatch_incoming(socket).await;
     }
 }
