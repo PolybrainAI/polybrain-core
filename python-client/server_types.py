@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 class SessionStartRequest(BaseModel):
     user_token: str
+    onshape_document_id: str
 
 class SessionStartResponse(BaseModel):
     session_id: str

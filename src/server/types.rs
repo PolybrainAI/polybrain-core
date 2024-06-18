@@ -1,8 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+pub const ONSHAPE_API: &str = "https://cad.onshape.com/api/v6";
+pub const OPENAI_API: &str = "https://api.openai.com/v1";
+
 #[derive(Deserialize, Serialize)]
 pub struct SessionStartRequest {
     pub user_token: String,
+    pub onshape_document_id: String,
 }
 
 #[derive(Serialize)]
@@ -37,12 +41,12 @@ pub struct ServerResponse {
     pub content: String,
 }
 
+#[derive(Debug)]
 pub struct ApiCredentials {
     pub openai_token: String,
     pub onshape_access_key: String,
     pub onshape_secret_key: String,
 }
-
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UserDocumentCredentials {

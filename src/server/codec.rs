@@ -96,8 +96,6 @@ where
 {
     let payload_string = &error.serialize_string();
     println!("sending error:\n{}", payload_string);
-    socket
-        .send(payload_string)
-        .await?;
+    socket.send(payload_string).await?;
     Ok(())
 }

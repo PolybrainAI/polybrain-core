@@ -52,7 +52,10 @@ class Client:
     def run(self):
 
         # Complete auth handshake with server
-        self.send_message(server_types.SessionStartRequest(user_token=os.environ["TEST_USER_TOKEN"]))
+        self.send_message(server_types.SessionStartRequest(
+            onshape_document_id=os.environ["TEST_DOCUMENT_ID"],
+            user_token=os.environ["TEST_USER_TOKEN"])
+            )
         print("info: sent session start request")
 
         response = self.receive_message(server_types.SessionStartResponse)
