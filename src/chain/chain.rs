@@ -14,12 +14,12 @@ where
 {
     println!("Entering chain with initial input: {}", initial_input);
 
-    // tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     let user_input = query_input("Enter a value please").await.unwrap();
     println!("got user input: {}", user_input);
 
-    // tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     send_output(ServerResponse {
         response_type: ServerResponseType::Info,
@@ -27,7 +27,7 @@ where
     })
     .await?;
 
-    // tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     send_output(ServerResponse {
         response_type: ServerResponseType::Final,
