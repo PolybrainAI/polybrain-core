@@ -47,7 +47,7 @@ async fn send_output_callback(
 async fn start_execution_loop(
     mut ws_stream: WebSocketStream<TcpStream>,
 ) -> Result<(), Box<dyn Error>> {
-    println!("Spawned new task for socket: {:?}", ws_stream);
+    println!("Spawned new task for socket");
 
     println!("waiting for incoming message...");
     let incoming: SessionStartRequest = wait_for_message(&mut ws_stream).await?;
