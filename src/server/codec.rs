@@ -1,101 +1,70 @@
-use bytes::{BufMut, BytesMut};
-use futures::{SinkExt, TryStreamExt};
+
+use core::fmt;
+use futures::{SinkExt, StreamExt};
 use serde::{de::DeserializeOwned, Serialize};
-use std::io;
+use std::error::Error;
+use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use tokio::net::TcpStream;
-use tokio_util::codec::{Decoder, Encoder, Framed};
 
-use super::error::{RequestError, SocketError};
 
-pub struct MessageCodec;
-
-impl Decoder for MessageCodec {
-    type Item = String;
-    type Error = io::Error;
-
-    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        // Check if we have a complete line (terminated by \r\n)
-        if let Some(pos) = src.windows(2).position(|window| window == b"\r\n") {
-            // Remove the line from the buffer
-            let mut line = src.split_to(pos + 2);
-            // Remove the \r\n
-            _ = line.split_off(pos);
-            // Convert the bytes to a string and return it
-            let line = String::from_utf8(line.to_vec())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            Ok(Some(line))
-        } else {
-            Ok(None)
-        }
-    }
-}
-
-impl Encoder<&str> for MessageCodec {
-    type Error = io::Error;
-
-    fn encode(&mut self, item: &str, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        // Append the item and \r\n to the buffer
-        dst.put(item.as_bytes());
-        dst.put(&b"\r\n"[..]);
-        Ok(())
-    }
-}
-
-pub type FramedSocket = Framed<TcpStream, MessageCodec>;
+use super::error::SocketError;
 
 /// Waits for an incoming message of a certain type
-pub async fn wait_for_message<T: DeserializeOwned + Serialize>(
-    socket: &mut FramedSocket,
-) -> io::Result<T> {
-    let mut next_message = socket.try_next().await?;
+pub async fn wait_for_message<T: DeserializeOwned + Serialize + fmt::Debug>(
+    ws_stream: &mut WebSocketStream<TcpStream>,
+) -> Result<T, Box<dyn Error>> {
+    let (_, mut read) = ws_stream.split();
 
-    while next_message.is_none() {
-        next_message = socket.try_next().await?;
-    }
-    match serde_json::from_str(&next_message.clone().unwrap()) {
-        Ok(model) => {
-            println!(
-                "got incoming message:\n{}",
-                serde_json::to_string_pretty(&model)?
-            );
-            Ok(model)
+    if let Some(message) = read.next().await {
+        let message = message.expect("websocket has corrupted message");
+
+        if message.is_text() {
+            let message_text = message.to_text()?;
+            match serde_json::from_str(message_text) {
+                Ok(model) => {
+                    println!("got incoming message:\n{:?}", &model);
+                    return Ok(model)
+                }
+                Err(err) => {
+                    println!("failed to deserialize incoming message:\n{:?}", err);
+                    println!("the message was:\n{message_text}");
+                    return Err(Box::new(err))
+                }
+            }
+        } else {
+            println!("incoming websocket message was not text!");
+            return Err(Box::new(tungstenite::Error::Utf8))
         }
-        Err(err) => {
-            println!(
-                "Unable to deserialize the incoming message:\n{}",
-                next_message.unwrap()
-            );
-            send_error(
-                socket,
-                RequestError {
-                    message: format!("Bad Request Format: {}", err),
-                    operation: "Deserialize Request".to_owned(),
-                },
-            )
-            .await?;
-            Err(err.into())
-        }
-    }
+    } else {
+        return Err(Box::new(tungstenite::Error::ConnectionClosed))
+    };
+
 }
 
 /// Sends an outbound message
-pub async fn send_message<T: Serialize>(socket: &mut FramedSocket, payload: T) -> io::Result<()> {
+pub async fn send_message<T: Serialize>(
+    ws_stream: &mut WebSocketStream<TcpStream>,
+    payload: T,
+) -> Result<(), Box<dyn Error>> {
+    let (mut write, _) = ws_stream.split();
+
     let payload_string = serde_json::to_string_pretty(&payload)?;
-    println!("sending message:\n{payload_string}");
-    socket
-        .send(serde_json::to_string_pretty(&payload)?.as_str())
-        .await?;
+    write.send(Message::text(payload_string)).await?;
+
     Ok(())
 }
 
 /// Sends an error response
-pub async fn send_error<T>(socket: &mut FramedSocket, error: T) -> io::Result<()>
+pub async fn send_error<T>(ws_stream: &mut WebSocketStream<TcpStream>, error: T) -> Result<(), Box<dyn Error>>
 where
     T: SocketError + Serialize,
 {
     let payload_string = &error.serialize_string();
     println!("sending error:\n{}", payload_string);
-    socket.send(payload_string).await?;
+
+    let (mut write, _) = ws_stream.split();
+    write.send(Message::text(payload_string)).await?;
+
     Ok(())
 }

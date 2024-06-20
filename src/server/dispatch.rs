@@ -2,57 +2,60 @@ use crate::{
     chain::chain::enter_chain,
     server::{
         auth::fetch_user_credentials,
-        codec::{send_error, send_message, wait_for_message, FramedSocket, MessageCodec},
+        codec::{send_error, send_message, wait_for_message},
         error::{AuthenticationError, InternalError},
         types::{ApiCredentials, SessionStartResponse, UserInputQuery, UserPromptInitial},
     },
 };
+use std::error::Error;
 use tokio::{net::TcpStream, sync::Mutex};
-use tokio_util::codec::Framed;
+use tokio_tungstenite::{accept_async, WebSocketStream};
+
 use uuid::Uuid;
 
 use super::types::{ServerResponse, SessionStartRequest, UserInputResponse};
-use std::io::Result;
 
-async fn query_input_callback(frame_mutex: &Mutex<FramedSocket>, input: &str) -> Result<String> {
-    let mut frame = frame_mutex.lock().await;
+async fn query_input_callback(
+    ws_mutex: &Mutex<WebSocketStream<TcpStream>>,
+    input: &str,
+) -> Result<String, Box<dyn Error>> {
+    let mut ws_stream = ws_mutex.lock().await;
 
     send_message(
-        &mut frame,
+        &mut ws_stream,
         UserInputQuery {
             query: input.to_owned(),
         },
     )
     .await?;
 
-    let response: UserInputResponse = wait_for_message(&mut frame).await?;
-
-    Ok(response.response)
+    let incoming: UserInputResponse = wait_for_message(&mut ws_stream).await?;
+    Ok(incoming.response)
 }
 
 async fn send_output_callback(
-    frame_mutex: &Mutex<FramedSocket>,
+    ws_mutex: &Mutex<WebSocketStream<TcpStream>>,
     output: ServerResponse,
-) -> Result<()> {
-    let mut frame = frame_mutex.lock().await;
+) -> Result<(), Box<dyn Error>> {
+    let mut ws_stream = ws_mutex.lock().await;
 
-    send_message(&mut frame, output).await?;
+    send_message(&mut ws_stream, output).await?;
 
     Ok(())
 }
 
-async fn start_execution_loop(socket: TcpStream) -> Result<()> {
-    println!("Spawned new task for socket: {:?}", socket);
-
-    let mut framed: FramedSocket = Framed::new(socket, MessageCodec);
+async fn start_execution_loop(
+    mut ws_stream: WebSocketStream<TcpStream>,
+) -> Result<(), Box<dyn Error>> {
+    println!("Spawned new task for socket");
 
     println!("waiting for incoming message...");
-    let incoming: SessionStartRequest = wait_for_message(&mut framed).await?;
+    let incoming: SessionStartRequest = wait_for_message(&mut ws_stream).await?;
 
     let credentials: ApiCredentials = match fetch_user_credentials(&incoming.user_token).await {
         Ok(c) => c,
         Err(message) => {
-            send_error(&mut framed, AuthenticationError { message }).await?;
+            send_error(&mut ws_stream, AuthenticationError { message }).await?;
             return Ok(());
         }
     };
@@ -62,21 +65,21 @@ async fn start_execution_loop(socket: TcpStream) -> Result<()> {
     let session_id = Uuid::new_v4().to_string();
     println!("staring session with id {session_id}");
 
-    send_message(&mut framed, SessionStartResponse { session_id }).await?;
+    send_message(&mut ws_stream, SessionStartResponse { session_id }).await?;
 
-    let initial_input: UserPromptInitial = wait_for_message(&mut framed).await?;
+    let initial_input: UserPromptInitial = wait_for_message(&mut ws_stream).await?;
 
-    let frame_mutex = Mutex::new(framed);
+    let stream_mutex = Mutex::new(ws_stream);
 
     if let Err(err) = enter_chain(
         &initial_input.contents,
-        |input: &str| Box::pin(query_input_callback(&frame_mutex, input)),
-        |output: ServerResponse| Box::pin(send_output_callback(&frame_mutex, output)),
+        |input: &str| Box::pin(query_input_callback(&stream_mutex, input)),
+        |output: ServerResponse| Box::pin(send_output_callback(&stream_mutex, output)),
     )
     .await
     {
         println!("LLM Chain Crashed with error: {}", err);
-        let mut frame = frame_mutex.lock().await;
+        let mut frame = stream_mutex.lock().await;
         send_error(
             &mut frame,
             InternalError {
@@ -89,11 +92,21 @@ async fn start_execution_loop(socket: TcpStream) -> Result<()> {
     Ok(())
 }
 
+
+async fn process(socket: TcpStream){
+    println!("converting incoming tcp to websocket: {:?}", socket);
+    let ws_stream = accept_async(socket)
+        .await
+        .expect("Failed to convert socket stream to ws");
+
+    if let Err(err) = start_execution_loop(ws_stream).await {
+        eprintln!("tokio process errored: {}", err)
+    };
+}
+
 /// Dispatches an incoming socket connection
 pub async fn dispatch_incoming(socket: TcpStream) {
     tokio::spawn(async move {
-        if let Err(err) = start_execution_loop(socket).await {
-            eprintln!("tokio process errored: {}", err)
-        }
+        process(socket).await;
     });
 }
