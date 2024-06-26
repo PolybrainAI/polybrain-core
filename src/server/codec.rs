@@ -1,4 +1,3 @@
-
 use core::fmt;
 use futures::{SinkExt, StreamExt};
 use serde::{de::DeserializeOwned, Serialize};
@@ -6,7 +5,6 @@ use std::error::Error;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 use tokio::net::TcpStream;
-
 
 use super::error::SocketError;
 
@@ -24,22 +22,21 @@ pub async fn wait_for_message<T: DeserializeOwned + Serialize + fmt::Debug>(
             match serde_json::from_str(message_text) {
                 Ok(model) => {
                     println!("got incoming message:\n{:?}", &model);
-                    return Ok(model)
+                    return Ok(model);
                 }
                 Err(err) => {
                     println!("failed to deserialize incoming message:\n{:?}", err);
                     println!("the message was:\n{message_text}");
-                    return Err(Box::new(err))
+                    return Err(Box::new(err));
                 }
             }
         } else {
             println!("incoming websocket message was not text!");
-            return Err(Box::new(tungstenite::Error::Utf8))
+            return Err(Box::new(tungstenite::Error::Utf8));
         }
     } else {
-        return Err(Box::new(tungstenite::Error::ConnectionClosed))
+        return Err(Box::new(tungstenite::Error::ConnectionClosed));
     };
-
 }
 
 /// Sends an outbound message
@@ -50,13 +47,17 @@ pub async fn send_message<T: Serialize>(
     let (mut write, _) = ws_stream.split();
 
     let payload_string = serde_json::to_string_pretty(&payload)?;
+    println!("sending output:\n{}", payload_string);
     write.send(Message::text(payload_string)).await?;
 
     Ok(())
 }
 
 /// Sends an error response
-pub async fn send_error<T>(ws_stream: &mut WebSocketStream<TcpStream>, error: T) -> Result<(), Box<dyn Error>>
+pub async fn send_error<T>(
+    ws_stream: &mut WebSocketStream<TcpStream>,
+    error: T,
+) -> Result<(), Box<dyn Error>>
 where
     T: SocketError + Serialize,
 {

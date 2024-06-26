@@ -111,7 +111,8 @@ pub async fn fetch_user_id(user_token: &str) -> Result<String, Box<dyn Error>> {
         .get("https://polybrain.xyz/auth0/user-data")
         .header("Cookie", format!("polybrain-session={user_token}"))
         .send()
-        .await.map_err(Box::new)?;
+        .await
+        .map_err(Box::new)?;
 
     if res.status().is_success() {
         let user_info: UserInfo = serde_json::from_str(&res.text().await.unwrap())

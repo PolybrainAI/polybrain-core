@@ -5,7 +5,7 @@ A Python utility to test a client to the socket server
 import json
 import socket
 import time
-import dotenv 
+import dotenv
 import os
 
 import asyncio
@@ -22,11 +22,11 @@ dotenv.load_dotenv()
 class Client:
 
     def __init__(self):
-        self.sock: WebSocketClientProtocol 
+        self.sock: WebSocketClientProtocol
 
     @classmethod
     async def new(cls) -> "Client":
-        url = f"ws://{os.environ["HOST_NAME"]}:{os.environ["HOST_PORT"]}"
+        url = f"ws://{os.environ['HOST_NAME']}:{os.environ['HOST_PORT']}"
         print(f"info: connecting to websocket @ {url}")
 
         self = cls()
@@ -41,13 +41,11 @@ class Client:
 
         return self
 
-
     async def receive_message[T](self, type: type[T]) -> T:
         buffer = await self.sock.recv()
 
         print(f"debug: received message:\n{buffer}")
         return type(**json.loads(buffer))
-
 
     async def send_message(self, message: BaseModel):
         payload = message.model_dump_json(indent=4)
@@ -57,10 +55,12 @@ class Client:
     async def run(self):
 
         # Complete auth handshake with server
-        await self.send_message(server_types.SessionStartRequest(
-            onshape_document_id=os.environ["TEST_DOCUMENT_ID"],
-            user_token=os.environ["TEST_USER_TOKEN"])
+        await self.send_message(
+            server_types.SessionStartRequest(
+                onshape_document_id=os.environ["TEST_DOCUMENT_ID"],
+                user_token=os.environ["TEST_USER_TOKEN"],
             )
+        )
         print("info: sent session start request")
 
         response = await self.receive_message(server_types.SessionStartResponse)
@@ -74,7 +74,7 @@ class Client:
         # Wait for inputs
 
         # NOTE: hard-coded for now; do some sort of callback thing in the future
-        query = await self.receive_message(server_types.UserInputQuery)
+        query = await self.receive_message(server_types.ServerResponse)
         print(f"info: got user query: '{query}'")
 
         await self.send_message(server_types.UserInputResponse(response="yes!"))

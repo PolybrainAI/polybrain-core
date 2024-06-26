@@ -4,7 +4,7 @@ use crate::{
         auth::fetch_user_credentials,
         codec::{send_error, send_message, wait_for_message},
         error::{AuthenticationError, InternalError},
-        types::{ApiCredentials, SessionStartResponse, UserInputQuery, UserPromptInitial},
+        types::{ApiCredentials, SessionStartResponse, UserPromptInitial},
     },
 };
 use std::error::Error;
@@ -13,7 +13,7 @@ use tokio_tungstenite::{accept_async, WebSocketStream};
 
 use uuid::Uuid;
 
-use super::types::{ServerResponse, SessionStartRequest, UserInputResponse};
+use super::types::{ServerResponse, ServerResponseType, SessionStartRequest, UserInputResponse};
 
 async fn query_input_callback(
     ws_mutex: &Mutex<WebSocketStream<TcpStream>>,
@@ -23,8 +23,9 @@ async fn query_input_callback(
 
     send_message(
         &mut ws_stream,
-        UserInputQuery {
-            query: input.to_owned(),
+        ServerResponse {
+            response_type: ServerResponseType::Query,
+            content: input.to_owned(),
         },
     )
     .await?;
@@ -92,8 +93,7 @@ async fn start_execution_loop(
     Ok(())
 }
 
-
-async fn process(socket: TcpStream){
+async fn process(socket: TcpStream) {
     println!("converting incoming tcp to websocket: {:?}", socket);
     let ws_stream = accept_async(socket)
         .await
