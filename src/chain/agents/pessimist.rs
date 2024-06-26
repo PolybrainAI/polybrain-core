@@ -1,14 +1,19 @@
-
 use std::{error::Error, pin::Pin};
 
 use futures::Future;
-use llm_chain::{executor, parameters, prompt::{Conversation, ChatMessage}};
-use llm_chain::prompt;
-use llm_chain_openai;
 use llm_chain::options;
+use llm_chain::prompt;
+use llm_chain::{
+    executor, parameters,
+    prompt::{ChatMessage, Conversation},
+};
+use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
 
-use crate::{chain::util::trim_assistant_prefix, server::types::{ServerResponse, ServerResponseType}};
+use crate::{
+    chain::util::trim_assistant_prefix,
+    server::types::{ServerResponse, ServerResponseType},
+};
 
 const PESSIMIST_PROMPT: &str = "
 
@@ -51,17 +56,16 @@ available in this conversation.
 {{conversation_history}}
 ";
 
-pub struct PessimistAgent<'b>{
+pub struct PessimistAgent<'b> {
     messages: Conversation,
-    openai_key: &'b String
+    openai_key: &'b String,
 }
 
 impl<'b> PessimistAgent<'b> {
-
     pub fn new(openai_key: &'b String) -> PessimistAgent {
-        PessimistAgent{
+        PessimistAgent {
             messages: Conversation::new(),
-            openai_key: openai_key
+            openai_key: openai_key,
         }
     }
 
@@ -71,69 +75,76 @@ impl<'b> PessimistAgent<'b> {
         return message_history.to_owned();
     }
 
-    pub async fn run<'a, I, O>(&mut self, initial_message: &str, get_input: &I, send_output: &O) 
-    -> Result<String, Box<dyn std::error::Error>> where
+    pub async fn run<'a, I, O>(
+        &mut self,
+        initial_message: &str,
+        get_input: &I,
+        send_output: &O,
+    ) -> Result<String, Box<dyn std::error::Error>>
+    where
         I: Fn(String) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + Send + 'a>>
             + Send
             + 'a,
-        O: Fn(ServerResponse) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send + 'a>>
+        O: Fn(
+                ServerResponse,
+            ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send + 'a>>
             + Send
-            + 'a
-        {
-
+            + 'a,
+    {
         let mut agent_response: String = "".to_owned();
-        self.messages.add_message(ChatMessage::user(initial_message.to_owned()));
+        self.messages
+            .add_message(ChatMessage::user(initial_message.to_owned()));
 
-        let opts = options!{
+        let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),
             ApiKey: self.openai_key.clone(),
             StopSequence: vec!["\n".to_string(), "User:".to_string()]
         };
         let exec = executor!(chatgpt, opts)?;
-        
+
         while !agent_response.contains("Begin!") {
-    
-            let parameters = parameters!{
+            let parameters = parameters! {
                 "conversation_history" => self.build_conversation_history()
             };
 
             let res = prompt!(system: PESSIMIST_PROMPT)
-            .run(&parameters, &exec) // ...and run it
-            .await?;
-    
+                .run(&parameters, &exec) // ...and run it
+                .await?;
+
             let r = res.to_immediate().await?.as_content().to_text().clone();
             agent_response = trim_assistant_prefix(&r).trim().to_string();
-    
+
             println!("agent: {}", agent_response);
 
-            if !agent_response.contains("Begin!"){
+            if !agent_response.contains("Begin!") {
                 println!("not end");
                 let user_input = get_input(agent_response.clone()).await?;
                 self.messages.add_message(ChatMessage::user(user_input))
-            }
-            else{
-                send_output(ServerResponse{
+            } else {
+                send_output(ServerResponse {
                     response_type: ServerResponseType::Info,
-                    content: agent_response.replace("Begin!", "")
-                }).await?;
+                    content: agent_response.replace("Begin!", ""),
+                })
+                .await?;
             }
-
         }
 
         // Summarize what the user decided on
         let summary = prompt!(SUMMARIZER_PROMPT)
-        .run(&parameters!("conversation_history" => self.build_conversation_history()), &exec)
-        .await?
-        .to_immediate()
-        .await?
-        .as_content()
-        .to_text();
+            .run(
+                &parameters!("conversation_history" => self.build_conversation_history()),
+                &exec,
+            )
+            .await?
+            .to_immediate()
+            .await?
+            .as_content()
+            .to_text();
 
         let summary = trim_assistant_prefix(&summary).to_owned();
 
         println!("Summarized prompt as: {}", summary);
 
         Ok(summary)
-
-    } 
+    }
 }
