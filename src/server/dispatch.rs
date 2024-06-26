@@ -25,7 +25,7 @@ async fn query_input_callback(
         &mut ws_stream,
         ServerResponse {
             response_type: ServerResponseType::Query,
-            content: input.to_owned()
+            content: input.to_owned(),
         },
     )
     .await?;
@@ -93,8 +93,7 @@ async fn start_execution_loop(
     Ok(())
 }
 
-
-async fn process(socket: TcpStream){
+async fn process(socket: TcpStream) {
     println!("converting incoming tcp to websocket: {:?}", socket);
     let ws_stream = accept_async(socket)
         .await
