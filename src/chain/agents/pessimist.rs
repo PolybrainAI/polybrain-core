@@ -1,5 +1,5 @@
 
-use std::{error::Error, io::{self, Write}, pin::Pin};
+use std::{error::Error, pin::Pin};
 
 use futures::Future;
 use llm_chain::{executor, parameters, prompt::{Conversation, ChatMessage}};
@@ -43,25 +43,22 @@ MUST respond with \"Begin!\" eventually.
 {{conversation_history}}
 ";
 
+const SUMMARIZER_PROMPT: &str = "
+Consider the following conversation between a user and an assistant. Summarize
+the model that the user ended up requesting in the end. Your summary should
+be no longer than four sentences, but it should include all the details
+available in this conversation.
+{{conversation_history}}
+";
 
-fn get_user_input() -> String {
-    let mut input = String::new();
-    print!("Please enter your input: ");
-    io::stdout().flush().unwrap(); // Ensure the prompt is displayed before reading input
-    io::stdin().read_line(&mut input)
-        .expect("Failed to read line");
-    input.trim().to_string() // Remove trailing newline and return the input
-}
-
-
-pub struct PessimistAgent{
+pub struct PessimistAgent<'b>{
     messages: Conversation,
-    openai_key: String
+    openai_key: &'b String
 }
 
-impl PessimistAgent {
+impl<'b> PessimistAgent<'b> {
 
-    pub fn new(openai_key: String) -> PessimistAgent {
+    pub fn new(openai_key: &'b String) -> PessimistAgent {
         PessimistAgent{
             messages: Conversation::new(),
             openai_key: openai_key
@@ -75,7 +72,7 @@ impl PessimistAgent {
     }
 
     pub async fn run<'a, I, O>(&mut self, initial_message: &str, get_input: &I, send_output: &O) 
-    -> Result<(), Box<dyn std::error::Error>> where
+    -> Result<String, Box<dyn std::error::Error>> where
         I: Fn(String) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + Send + 'a>>
             + Send
             + 'a,
@@ -123,9 +120,20 @@ impl PessimistAgent {
 
         }
 
-        println!("Exiting pessimist chain");
+        // Summarize what the user decided on
+        let summary = prompt!(SUMMARIZER_PROMPT)
+        .run(&parameters!("conversation_history" => self.build_conversation_history()), &exec)
+        .await?
+        .to_immediate()
+        .await?
+        .as_content()
+        .to_text();
 
-        Ok(())
+        let summary = trim_assistant_prefix(&summary).to_owned();
+
+        println!("Summarized prompt as: {}", summary);
+
+        Ok(summary)
 
     } 
 }

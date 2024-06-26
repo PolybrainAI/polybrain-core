@@ -2,6 +2,7 @@ use std::error::Error;
 use std::io;
 use std::{future::Future, pin::Pin};
 
+use crate::chain::agents::mathematician::MathematicianAgent;
 use crate::chain::agents::pessimist::PessimistAgent;
 use crate::server::types::{ApiCredentials, ServerResponse, ServerResponseType};
 
@@ -23,13 +24,17 @@ where
 
 
     // Pessimist Chain
-    let mut pessimist = PessimistAgent::new(credentials.openai_token);
+    let mut pessimist = PessimistAgent::new(&credentials.openai_token);
 
-    pessimist.run(
+    let _parsed_prompt = pessimist.run(
         initial_input,
         &query_input,
         &send_output,
     ).await.unwrap();
+
+    // Mathematician Chain
+    let mathematician = MathematicianAgent::new(&credentials.openai_token);
+    let _math_notes = mathematician.run().await;
 
 
 
