@@ -11,8 +11,6 @@ class SessionStartResponse(BaseModel):
 
 class UserPromptInitial(BaseModel):
     contents: str
-class UserInputQuery(BaseModel):
-    query: str
 class UserInputResponse(BaseModel):
     response: str
 class ServerResponse(BaseModel):

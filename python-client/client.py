@@ -74,7 +74,7 @@ class Client:
         # Wait for inputs
 
         # NOTE: hard-coded for now; do some sort of callback thing in the future
-        query = await self.receive_message(server_types.UserInputQuery)
+        query = await self.receive_message(server_types.ServerResponse)
         print(f"info: got user query: '{query}'")
 
         await self.send_message(server_types.UserInputResponse(response="yes!"))

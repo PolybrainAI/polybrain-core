@@ -18,24 +18,19 @@ pub struct SessionStartResponse {
 pub struct UserPromptInitial {
     pub contents: String,
 }
-
-#[derive(Serialize)]
-pub struct UserInputQuery {
-    pub query: String,
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UserInputResponse {
     pub response: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub enum ServerResponseType {
+    Query,
     Info,
     Final,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct ServerResponse {
     pub response_type: ServerResponseType,
     pub content: String,

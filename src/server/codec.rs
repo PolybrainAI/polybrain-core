@@ -50,6 +50,7 @@ pub async fn send_message<T: Serialize>(
     let (mut write, _) = ws_stream.split();
 
     let payload_string = serde_json::to_string_pretty(&payload)?;
+    println!("sending output:\n{}", payload_string);
     write.send(Message::text(payload_string)).await?;
 
     Ok(())
