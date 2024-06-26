@@ -53,14 +53,14 @@ available in this conversation.
 ";
 
 
-pub struct PessimistAgent{
+pub struct PessimistAgent<'b>{
     messages: Conversation,
-    openai_key: String
+    openai_key: &'b String
 }
 
-impl PessimistAgent {
+impl<'b> PessimistAgent<'b> {
 
-    pub fn new(openai_key: String) -> PessimistAgent {
+    pub fn new(openai_key: &String) -> PessimistAgent {
         PessimistAgent{
             messages: Conversation::new(),
             openai_key: openai_key

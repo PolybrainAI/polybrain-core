@@ -2,6 +2,7 @@ use std::error::Error;
 use std::io;
 use std::{future::Future, pin::Pin};
 
+use crate::chain::agents::mathematician::{self, MathematicianAgent};
 use crate::chain::agents::pessimist::PessimistAgent;
 use crate::server::types::{ApiCredentials, ServerResponse, ServerResponseType};
 
@@ -23,7 +24,7 @@ where
 
 
     // Pessimist Chain
-    let mut pessimist = PessimistAgent::new(credentials.openai_token);
+    let mut pessimist = PessimistAgent::new(&credentials.openai_token);
 
     let parsed_prompt = pessimist.run(
         initial_input,
@@ -31,23 +32,9 @@ where
         &send_output,
     ).await.unwrap();
 
-
-
-
-
-    // tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-
-    // let user_input = query_input("Enter a value please".to_owned()).await.unwrap();
-    // println!("got user input: {}", user_input);
-
-    // tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-
-    // send_output(ServerResponse {
-    //     response_type: ServerResponseType::Info,
-    //     content: "Thinking".to_owned(),
-    // })
-    // .await
-    // .unwrap();
+    // Mathematician Chain
+    let mut mathematician = MathematicianAgent::new(&credentials.openai_token);
+    let math_notes = mathematician.run().await;
 
     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
