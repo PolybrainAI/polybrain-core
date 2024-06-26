@@ -25,11 +25,13 @@ where
     // Pessimist Chain
     let mut pessimist = PessimistAgent::new(credentials.openai_token);
 
-    pessimist.run(
+    let parsed_prompt = pessimist.run(
         initial_input,
         &query_input,
         &send_output,
     ).await.unwrap();
+
+
 
 
 
@@ -51,7 +53,7 @@ where
 
     send_output(ServerResponse {
         response_type: ServerResponseType::Final,
-        content: "LLM Chain has finished!".to_owned(),
+        content: format!("LLM Chain has finished! The prompt is: '{}'", parsed_prompt),
     })
     .await
     .unwrap();
