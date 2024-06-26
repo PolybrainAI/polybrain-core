@@ -17,7 +17,7 @@ use super::types::{ServerResponse, ServerResponseType, SessionStartRequest, User
 
 async fn query_input_callback(
     ws_mutex: &Mutex<WebSocketStream<TcpStream>>,
-    input: &str,
+    input: String,
 ) -> Result<String, Box<dyn Error>> {
     let mut ws_stream = ws_mutex.lock().await;
 
@@ -74,7 +74,8 @@ async fn start_execution_loop(
 
     if let Err(err) = enter_chain(
         &initial_input.contents,
-        |input: &str| Box::pin(query_input_callback(&stream_mutex, input)),
+        credentials,
+        |input: String| Box::pin(query_input_callback(&stream_mutex, input)),
         |output: ServerResponse| Box::pin(send_output_callback(&stream_mutex, output)),
     )
     .await

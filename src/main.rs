@@ -1,4 +1,7 @@
+use std::error::Error;
+
 use dotenv::dotenv;
+use futures::FutureExt;
 use server::dispatch::dispatch_incoming;
 use std::io::Result;
 use tokio::net::TcpListener;
