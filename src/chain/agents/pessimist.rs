@@ -39,8 +39,9 @@ This means that Polybrain, unlike other CAD software, is unable to:
 - Create angled, complicated faces
 
 The following is your conversation with the user. 
-Respond quickly, and try not to ask too many questions.
 If you deny a user's request, tell them exactly why.
+Respond quickly, and try not to ask too many questions. Your responses
+should rarely be longer than 2 sentences.
 
 If the request is reasonable, end your final message with \"Begin!\" You 
 MUST respond with \"Begin!\" eventually.
@@ -71,8 +72,15 @@ impl<'b> PessimistAgent<'b> {
 
     fn build_conversation_history(&self) -> String {
         let message_history = &self.messages.to_string();
-        println!("Message history is:\n{message_history}");
         return message_history.to_owned();
+    }
+
+    fn build_prompt(&self) -> String {
+        let prompt = PESSIMIST_PROMPT.replace(
+            "{{conversation_history}}",
+            &self.build_conversation_history(),
+        );
+        prompt
     }
 
     pub async fn run<'a, I, O>(
@@ -103,29 +111,28 @@ impl<'b> PessimistAgent<'b> {
         let exec = executor!(chatgpt, opts)?;
 
         while !agent_response.contains("Begin!") {
-            let parameters = parameters! {
-                "conversation_history" => self.build_conversation_history()
-            };
+            let parameters = parameters! {};
 
-            let res = prompt!(system: PESSIMIST_PROMPT)
+            let res = prompt!(system: &self.build_prompt())
                 .run(&parameters, &exec) // ...and run it
                 .await?;
 
             let r = res.to_immediate().await?.as_content().to_text().clone();
             agent_response = trim_assistant_prefix(&r).trim().to_string();
 
-            println!("agent: {}", agent_response);
+            println!("Pessimist: {}", agent_response);
 
-            if !agent_response.contains("Begin!") {
-                println!("not end");
-                let user_input = get_input(agent_response.clone()).await?;
-                self.messages.add_message(ChatMessage::user(user_input))
-            } else {
+            if agent_response.contains("Begin!") {
                 send_output(ServerResponse {
                     response_type: ServerResponseType::Info,
                     content: agent_response.replace("Begin!", ""),
                 })
                 .await?;
+            } else {
+                self.messages
+                    .add_message(ChatMessage::assistant(agent_response.replace("\n", " ")));
+                let user_input = get_input(agent_response.clone()).await?;
+                self.messages.add_message(ChatMessage::user(user_input))
             }
         }
 

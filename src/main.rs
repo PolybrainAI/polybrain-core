@@ -1,7 +1,4 @@
-use std::error::Error;
-
 use dotenv::dotenv;
-use futures::FutureExt;
 use server::dispatch::dispatch_incoming;
 use std::io::Result;
 use tokio::net::TcpListener;
@@ -16,7 +13,6 @@ mod util;
 
 async fn main() -> Result<()> {
     dotenv().ok();
-
     let address = format!("{}:{}", get_dotenv("HOST_NAME"), get_dotenv("HOST_PORT"));
 
     println!("connecting to address '{}'...", address);
