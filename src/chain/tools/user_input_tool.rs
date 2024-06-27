@@ -84,15 +84,11 @@ impl Tool for UserQuery {
         })
     }
 
-    // fn construct_input(input: serde_yaml::Value) -> Result<Self::Input, Self::Error>{
-    //     todo!()
-    // }
-
     fn description(&self) -> ToolDescription {
         ToolDescription::new(
             "User Query",
-            "Useful for when you need to ask the user a question. Ask one thing at a time.",
-            "Use this to get information about the user's request.",
+            "Useful for when you need to ask the user a specific question. Ask one thing at a time.",
+            "Use this to get additional information about the user's request. Don't ask something you already know.",
             UserQueryInput::describe(),
             UserQueryOutput::describe(),
         )
