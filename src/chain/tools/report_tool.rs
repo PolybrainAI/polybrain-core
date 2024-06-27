@@ -1,15 +1,7 @@
-use std::{pin::Pin, sync::Arc};
-
 use async_trait::async_trait;
-use futures::Future;
 use llm_chain::tools::{Describe, Tool, ToolDescription, ToolError};
 use serde::{Deserialize, Serialize};
-use std::error;
 use thiserror::Error;
-
-pub type Callback = dyn Fn(String) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn error::Error>>> + Send + Sync>>
-    + Send
-    + Sync;
 
 pub struct Report {}
 

@@ -24,31 +24,21 @@ where
     println!("Entering chain with initial input: {}", initial_input);
 
     // Pessimist Chain
-    // let mut pessimist = PessimistAgent::new(&credentials.openai_token);
-
-    // let parsed_prompt = pessimist
-    //     .run(initial_input, &query_input, &send_output)
-    //     .await
-    //     .map_err(|err| eprintln!("Pessimist errored: {}", err))
-    //     .unwrap();
-    let parsed_prompt = "Make a 3 inch cube".to_owned();
+    let mut pessimist = PessimistAgent::new(&credentials.openai_token);
+    let parsed_prompt = pessimist
+        .run(initial_input, &query_input, &send_output)
+        .await
+        .map_err(|err| eprintln!("Pessimist errored: {}", err))
+        .unwrap();
 
     // Mathematician Chain
     let mathematician = MathematicianAgent::new(&credentials.openai_token);
     let math_notes = mathematician.run().await;
 
     // Executive Planner
-    println!("Starting executive planner");
     let mut executive_planner =
         ExecutivePlanner::new(&credentials.openai_token, &parsed_prompt, &math_notes).unwrap();
-    println!("entering executive planner");
-    let modeler_outline = executive_planner
-        .run(
-            &query_input,
-            // &send_output,
-        )
-        .await
-        .unwrap();
+    let modeler_outline = executive_planner.run(&query_input).await.unwrap();
 
     println!("The modeler outline is:\n{}", modeler_outline);
 

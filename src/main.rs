@@ -1,4 +1,3 @@
-use chain::agents::executive_planner::ExecutivePlanner;
 use dotenv::dotenv;
 use server::dispatch::dispatch_incoming;
 use std::io::Result;
@@ -25,14 +24,4 @@ async fn main() -> Result<()> {
 
         dispatch_incoming(socket).await;
     }
-
-    // let api_key = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
-    // let model_description = "A big chair".to_owned();
-    // let math_notes = "No comments".to_owned();
-
-    // let mut planner = ExecutivePlanner::new(&api_key, &model_description, &math_notes).unwrap();
-
-    // planner.run().await.unwrap();
-
-    Ok(())
 }
