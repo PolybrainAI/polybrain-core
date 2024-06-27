@@ -1,9 +1,11 @@
 pub struct MathematicianAgent<'a> {
-    openai_key: &'a String,
+    _openai_key: &'a String,
 }
 impl<'a> MathematicianAgent<'a> {
     pub fn new(openai_key: &String) -> MathematicianAgent {
-        MathematicianAgent { openai_key }
+        MathematicianAgent {
+            _openai_key: openai_key,
+        }
     }
 
     pub async fn run(&self) -> String {

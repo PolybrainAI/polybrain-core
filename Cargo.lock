@@ -1402,8 +1402,6 @@ checksum = "643cb0b8d4fcc284004d5fd0d67ccf61dfffadb7f75e1e71bc420f4688a3a704"
 [[package]]
 name = "llm-chain"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0921c2c333c11d9806c650237e9a345562767afec314035dabc073fbc14e60f4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1428,8 +1426,6 @@ dependencies = [
 [[package]]
 name = "llm-chain-openai"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "738bdfe657582e6fcaa976b5d32626337d6039526219c5cd0ba0bbc0744ab9b2"
 dependencies = [
  "async-openai",
  "async-trait",
@@ -1890,6 +1886,7 @@ name = "polybrain-core"
 version = "0.1.0"
 dependencies = [
  "aes",
+ "async-trait",
  "block-modes",
  "block-padding",
  "bytes",
@@ -1904,7 +1901,10 @@ dependencies = [
  "reqwest 0.12.4",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sha2",
+ "textwrap",
+ "thiserror",
  "tokio",
  "tokio-tungstenite",
  "tokio-util 0.6.10",
@@ -2528,6 +2528,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
+name = "smawk"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
+
+[[package]]
 name = "socket2"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2724,6 +2730,17 @@ dependencies = [
  "serde_json",
  "slug",
  "unic-segment",
+]
+
+[[package]]
+name = "textwrap"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23d434d3f8967a09480fb04132ebe0a3e088c173e6d0ee7897abbdf4eab0f8b9"
+dependencies = [
+ "smawk",
+ "unicode-linebreak",
+ "unicode-width",
 ]
 
 [[package]]
@@ -3167,6 +3184,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
 
 [[package]]
+name = "unicode-linebreak"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f"
+
+[[package]]
 name = "unicode-normalization"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3180,6 +3203,12 @@ name = "unicode-properties"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4259d9d4425d9f0661581b804cb85fe66a4c631cadd8f490d1c13a35d5d9291"
+
+[[package]]
+name = "unicode-width"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0336d538f7abc86d282a4189614dfaa90810dfc2c6f6427eaf88e16311dd225d"
 
 [[package]]
 name = "unsafe-libyaml"

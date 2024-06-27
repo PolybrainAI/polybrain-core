@@ -111,8 +111,7 @@ impl<'b> PessimistAgent<'b> {
         let exec = executor!(chatgpt, opts)?;
 
         while !agent_response.contains("Begin!") {
-            let parameters = parameters! {
-            };
+            let parameters = parameters! {};
 
             let res = prompt!(system: &self.build_prompt())
                 .run(&parameters, &exec) // ...and run it

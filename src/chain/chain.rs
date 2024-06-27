@@ -2,6 +2,7 @@ use std::error::Error;
 use std::io;
 use std::{future::Future, pin::Pin};
 
+use crate::chain::agents::executive_planner::ExecutivePlanner;
 use crate::chain::agents::mathematician::MathematicianAgent;
 use crate::chain::agents::pessimist::PessimistAgent;
 use crate::server::types::{ApiCredentials, ServerResponse, ServerResponseType};
@@ -23,30 +24,35 @@ where
     println!("Entering chain with initial input: {}", initial_input);
 
     // Pessimist Chain
-    let mut pessimist = PessimistAgent::new(&credentials.openai_token);
+    // let mut pessimist = PessimistAgent::new(&credentials.openai_token);
 
-    let _parsed_prompt = pessimist
-        .run(initial_input, &query_input, &send_output)
-        .await
-        .unwrap();
+    // let parsed_prompt = pessimist
+    //     .run(initial_input, &query_input, &send_output)
+    //     .await
+    //     .map_err(|err| eprintln!("Pessimist errored: {}", err))
+    //     .unwrap();
+    let parsed_prompt = "Make a 3 inch cube".to_owned();
 
     // Mathematician Chain
     let mathematician = MathematicianAgent::new(&credentials.openai_token);
-    let _math_notes = mathematician.run().await;
+    let math_notes = mathematician.run().await;
 
-    // tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+    // Executive Planner
+    println!("Starting executive planner");
+    let mut executive_planner =
+        ExecutivePlanner::new(&credentials.openai_token, &parsed_prompt, &math_notes).unwrap();
+    println!("entering executive planner");
+    let modeler_outline = executive_planner
+        .run(
+            &query_input,
+            // &send_output,
+        )
+        .await
+        .unwrap();
 
-    // let user_input = query_input("Enter a value please".to_owned()).await.unwrap();
-    // println!("got user input: {}", user_input);
+    println!("The modeler outline is:\n{}", modeler_outline);
 
-    // tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-
-    // send_output(ServerResponse {
-    //     response_type: ServerResponseType::Info,
-    //     content: "Thinking".to_owned(),
-    // })
-    // .await
-    // .unwrap();
+    credentials.openai_token;
 
     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
