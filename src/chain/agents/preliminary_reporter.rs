@@ -3,9 +3,7 @@ use std::{error::Error, pin::Pin};
 use futures::Future;
 use llm_chain::options;
 use llm_chain::prompt;
-use llm_chain::{
-    executor, parameters
-};
+use llm_chain::{executor, parameters};
 use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
 

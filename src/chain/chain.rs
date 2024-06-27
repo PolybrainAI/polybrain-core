@@ -5,7 +5,7 @@ use std::{future::Future, pin::Pin};
 use crate::chain::agents::executive_planner::ExecutivePlanner;
 use crate::chain::agents::mathematician::MathematicianAgent;
 use crate::chain::agents::pessimist::PessimistAgent;
-use crate::chain::agents::preliminary_reporter::{self, PreliminaryReporter};
+use crate::chain::agents::preliminary_reporter::PreliminaryReporter;
 use crate::server::types::{ApiCredentials, ServerResponse, ServerResponseType};
 
 pub async fn enter_chain<'a, I, O>(
