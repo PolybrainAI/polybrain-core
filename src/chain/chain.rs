@@ -5,6 +5,7 @@ use std::{future::Future, pin::Pin};
 use crate::chain::agents::executive_planner::ExecutivePlanner;
 use crate::chain::agents::mathematician::MathematicianAgent;
 use crate::chain::agents::pessimist::PessimistAgent;
+use crate::chain::agents::preliminary_reporter::PreliminaryReporter;
 use crate::server::types::{ApiCredentials, ServerResponse, ServerResponseType};
 
 pub async fn enter_chain<'a, I, O>(
@@ -35,10 +36,15 @@ where
     let mathematician = MathematicianAgent::new(&credentials.openai_token);
     let math_notes = mathematician.run().await;
 
-    // Executive Planner
+    // Executive Planner Chain
     let mut executive_planner =
         ExecutivePlanner::new(&credentials.openai_token, &parsed_prompt, &math_notes).unwrap();
     let modeler_outline = executive_planner.run(&query_input).await.unwrap();
+
+    // Preliminary Reporter Chain
+    let mut preliminary_reporter =
+        PreliminaryReporter::new(&credentials.openai_token, modeler_outline.clone());
+    preliminary_reporter.run(&send_output).await.unwrap();
 
     println!("The modeler outline is:\n{}", modeler_outline);
 
