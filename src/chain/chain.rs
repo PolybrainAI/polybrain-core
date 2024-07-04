@@ -42,6 +42,7 @@ where
     let mut executive_planner =
         ExecutivePlanner::new(&credentials.openai_token, &parsed_prompt, &math_notes).unwrap();
     let modeler_outline = executive_planner.run(&query_input).await.unwrap();
+    println!("The modeler outline is:\n{}", modeler_outline);
 
     // Preliminary Reporter Chain
     let mut preliminary_reporter =

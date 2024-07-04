@@ -74,6 +74,7 @@ Final Considerations:
 - OnPy cannot control color, or surface finish.
 - Your report is going to another employee, so now is the chance to ask any
 questions to the user about desired measurements.
+- All OnPy units are in Inches. Only include units of Inches in your response
 
 ================
 
@@ -92,6 +93,7 @@ all thoughts with a YAML comment (i.e., a line that begins with #)
 
 ```yaml
 ";
+
 
 const MAX_ITER: usize = 7;
 
@@ -169,8 +171,8 @@ impl<'b> ExecutivePlanner<'b> {
         let mut scratchpad = String::new();
 
         let opts = options! {
-            // Model: Model::Other("gpt-4o".to_string()),
-            Model: Model::Gpt35Turbo,
+            Model: Model::Other("gpt-4o".to_string()),
+            // Model: Model::Gpt35Turbo,
             ApiKey: self.openai_key.clone()
         };
         let exec = executor!(chatgpt, opts)?;
@@ -240,7 +242,12 @@ impl<'b> ExecutivePlanner<'b> {
                         ),
                         res, e
                     );
-                    return Err(Box::new(e));
+
+                    scratchpad.push_str(&format!(concat!(
+                        "YAML ERROR: Rephrase the following. Remove any mappings and respond as a string with \"|\"\n",
+                        "Input\n```\n{}\n```\n",
+                        "Output\n```\n{}\n```"
+                    ), res, e ));
                 }
             };
         }

@@ -3,13 +3,57 @@ use llm_chain::prompt;
 use llm_chain::{executor, parameters};
 use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
-use std::error::Error;
 use std::process::{Command, Output};
 use thiserror::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
+const MAX_ITER_ERR: usize = 10;
 const ONPY_AGENT_PROMPT: &str = r###"
+
+Use OnPy (described below) to create a 3D model to conform to the user's
+request.
+
+===== ONPY DOCUMENTATION =====
+{{onpy_guide}}
+
+
+## Final Remarks
+- The `closet_to` query will get the closest face; it will NOT help with
+    selecting the place to put the part on that face. 
+- When possible, it is best to use an offset plane for sketches instead of
+    trying to reference other parts.
+
+===== END DOCUMENTATION =====
+
+The original user's request was:
+{{user_request}}
+
+Your boss provided you the following instructions:
+{{modeling_instructions}}
+
+Respond in markdown. Your code should be in ONE python code block. Assume
+the `partstudio` and `onpy` variables already exist in the scope; adding them
+will cause an error.
+
+This block is appended to the beginning of your code at runtime:
+```py
+import onpy
+partstudio = onpy.get_document("{{document_id}}").get_partstudio()
+```
+
+===== BEGIN =====
+
+Your code:
+
+{{scratchpad}}
+
+"###;
+
+const ONPY_ERROR_PROMPT: &str = r###"
+Find the error and amend the code based on the provided error message. The
+documentation for the OnPy module is provided below, along with some of
+the parameters the original code author was attempting to conform to.
 
 Use OnPy (described below) to create a 3D model to conform to the user's
 request.
@@ -21,20 +65,32 @@ request.
 The original user's request was:
 {{user_request}}
 
-Your boss provided you the following instructions:
-{{modeling_instructions}}
+Fix the problem in the code below. Respond with a single, large markdown block. Error
+messages are shown under each script.
 
-Respond in markdown. Code in python blocks are executed and the
-console log is shown underneath.
+The original code was:
+```python
+{{erroneous_code}}
+```
+FAILED! Console:
+```
+{{console_output}}
+```
 
-===== BEGIN =====
+Add your code below, in ONE block. Assume the partstudio variable and onpy
+import above are moved into this context; i.e., do not reimport onpy
+or create a new document/partstudio.
 
-First, importing the required module
+More specifically, the following code is appended to the beginning of each
+block at runtime.
 ```py
 import onpy
 partstudio = onpy.get_document("{{document_id}}").get_partstudio()
 ```
 
+==== BEGIN ====
+
+{{scratchpad}}
 
 "###;
 
@@ -45,7 +101,13 @@ pub enum CodeError {
 
     #[error("execution error: {0}")]
     ExecutionError(String),
+
+    #[error("an internal, unexpected error occurred while parsing Python: {0}")]
+    Internal(String),
 }
+
+unsafe impl std::marker::Send for CodeError {}
+unsafe impl Sync for CodeError {}
 
 pub struct OnPyAgent<'b> {
     report: String,
@@ -84,7 +146,7 @@ impl<'b> OnPyAgent<'b> {
     }
 
     pub fn format_code_output(output: &str) -> Result<String, CodeError> {
-        let output = output.replace("```python", "```").replace("```py", "```");
+        let mut output = output.replace("```python", "```").replace("```py", "```");
 
         let num_boundaries = output
             .as_bytes()
@@ -93,9 +155,7 @@ impl<'b> OnPyAgent<'b> {
             .count();
 
         if num_boundaries % 2 != 0 {
-            return Err(CodeError::BadFormat(
-                "Python is not properly contained within ``` boundaries.".to_owned(),
-            ));
+            output.push_str("\n```");
         }
 
         let code = output
@@ -110,14 +170,12 @@ impl<'b> OnPyAgent<'b> {
         Ok(code)
     }
 
-    pub async fn execute_block(
-        code: &str,
-        onshape_document: &str,
-    ) -> Result<String, Box<dyn Error>> {
+    pub async fn execute_block(code: &str, onshape_document: &str) -> Result<String, CodeError> {
         let code = format!(
             concat!(
                 "import onpy\n",
                 "partstudio = onpy.get_document('{doc_id}').get_partstudio()\n",
+                "partstudio.wipe()\n",
                 "{code}"
             ),
             doc_id = onshape_document,
@@ -127,17 +185,21 @@ impl<'b> OnPyAgent<'b> {
         println!(
             concat!(
                 "==== EXECUTING CODE ====",
-                "# Executing the following:\n```py\n{}\n```",
+                "# Executing the following:\n```py\n{}\n```\n",
                 "========================"
             ),
             code
         );
 
         // Create a temporary file
-        let mut file = File::create("temp_script.py").await?;
+        let mut file = File::create("temp_script.py")
+            .await
+            .expect("Failed to create tmp python file");
 
         // Write the code to the file
-        file.write(code.as_bytes()).await?;
+        file.write(code.as_bytes())
+            .await
+            .expect("Failed to write to tmp python file");
 
         // Execute the Python script
         let output: Output = Command::new("python")
@@ -153,26 +215,108 @@ impl<'b> OnPyAgent<'b> {
             Ok(stdout)
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(Box::new(CodeError::ExecutionError(stderr)))
+            Err(CodeError::ExecutionError(stderr))
         }
+    }
+
+    pub async fn handle_error(
+        &mut self,
+        erroneous_code: String,
+        error_output: String,
+    ) -> Result<(String, String), CodeError> {
+        let opts = options! {
+            Model: Model::Other("gpt-4o".to_string()),
+            // Model: Model::Gpt35Turbo,
+            ApiKey: self.openai_key.clone(),
+            StopSequence: vec!["```\n\n".to_string(), "Cell Output".to_string(), "Console Output".to_string()]
+        };
+        let exec = executor!(chatgpt, opts).map_err(|err| CodeError::Internal(err.to_string()))?;
+        let onpy_guide = Self::load_onpy_guide().await;
+        let mut scratchpad = String::new();
+
+        for _ in 0..MAX_ITER_ERR {
+            let parameters = parameters!(
+                "onpy_guide" => &onpy_guide,
+                "user_request" => &self.original_request,
+                "erroneous_code" => &erroneous_code,
+                "document_id" => &self.onshape_document,
+                "console_output" => &error_output,
+                "scratchpad" => &scratchpad,
+            );
+            let prompt_full = prompt!(ONPY_ERROR_PROMPT)
+                .format(&parameters)
+                .map_err(|err| CodeError::Internal(err.to_string()))?;
+
+            println!(
+                concat!(
+                    "==== FULL ERROR PROMPT ====\n",
+                    "{}\n",
+                    "==========================="
+                ),
+                prompt_full
+            );
+
+            let mut code_output = prompt!(ONPY_ERROR_PROMPT)
+                .run(
+                    &parameters,
+                    &exec,
+                )
+                .await
+                .expect("Failed to run handle_error agent")
+                .to_immediate()
+                .await
+                .expect("Failed to convert LLM response to immediate")
+                .primary_textual_output()
+                .expect("No LLM output");
+
+            println!(
+                concat!(
+                    "==== LLM CODE RESPONSE ====\n",
+                    "(Error Agent)\n",
+                    "{}\n",
+                    "==========================="
+                ),
+                code_output
+            );
+
+            scratchpad.push_str(&code_output);
+
+            match {
+                code_output = Self::format_code_output(&code_output)
+                    .map_err(|err| CodeError::BadFormat(err.to_string()))?;
+                Self::execute_block(&code_output, &self.onshape_document).await
+            } {
+                Ok(console) => {
+                    return Ok((code_output, console));
+                }
+                Err(err) => scratchpad.push_str(&format!("Cell Error:\n```\n{}\n```", err)),
+            };
+        }
+
+        eprintln!("Max error retries exceeded!");
+        todo!()
     }
 
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let opts = options! {
-            // Model: Model::Other("gpt-4o".to_string()),
-            Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone()
+            Model: Model::Other("gpt-4o".to_string()),
+            // Model: Model::Gpt35Turbo,
+            ApiKey: self.openai_key.clone(),
+            StopSequence: vec!["```\n\n".to_string(), "Cell Output".to_string()]
         };
         let exec = executor!(chatgpt, opts)?;
         let onpy_guide = Self::load_onpy_guide().await;
+        let mut scratchpad = String::new();
 
+        println!("generating code...");
         let mut code_output = prompt!(ONPY_AGENT_PROMPT)
             .run(
                 &parameters!(
-                    "onpy_guide" => onpy_guide,
+                    "onpy_guide" => &onpy_guide,
                     "user_request" => &self.original_request,
                     "modeling_instructions" => &self.report,
-                    "document_id" => &self.onshape_document
+                    "document_id" => &self.onshape_document,
+                    "scratchpad" => &scratchpad
                 ),
                 &exec,
             )
@@ -185,6 +329,7 @@ impl<'b> OnPyAgent<'b> {
         println!(
             concat!(
                 "==== LLM CODE RESPONSE ====\n",
+                "(Main Agent)\n",
                 "{}\n",
                 "==========================="
             ),
@@ -192,8 +337,26 @@ impl<'b> OnPyAgent<'b> {
         );
 
         code_output = Self::format_code_output(&code_output)?;
+        match Self::execute_block(&code_output, &self.onshape_document).await {
+            Ok(output) => {
+                scratchpad.push_str(&code_output);
+                scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", output))
+            }
+            Err(CodeError::ExecutionError(tb)) => {
+                let (new_code, new_output) = &self
+                    .handle_error(code_output.clone(), tb)
+                    .await
+                    .inspect_err(|err| {
+                        eprintln!("Failed to recover from erroneous response: {err}")
+                    })?;
 
-        Self::execute_block(&code_output, &self.onshape_document).await?;
+                scratchpad.push_str(&new_code);
+                scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", new_output));
+            }
+            Err(_) => {
+                panic!("Unhandled error occurred during code execution")
+            }
+        };
 
         Ok(())
     }
