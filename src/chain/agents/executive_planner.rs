@@ -94,7 +94,6 @@ all thoughts with a YAML comment (i.e., a line that begins with #)
 ```yaml
 ";
 
-
 const MAX_ITER: usize = 7;
 
 pub struct ExecutivePlanner<'b> {
@@ -251,35 +250,6 @@ impl<'b> ExecutivePlanner<'b> {
                 }
             };
         }
-
-        // let mut output: String;
-
-        // loop {
-        //     let parameters = parameters!(
-        //         "model_description" => self.model_description,
-        //         "math_notes" => self.math_notes,
-        //         "scratchpad" => self.agent_scratchpad.clone()
-        //     );
-
-        //     output = prompt!(system: EXECUTIVE_PLANNER_PROMPT)
-        //         .run(&parameters, &exec) // ...and run it
-        //         .await?
-        //         .to_immediate()
-        //         .await?
-        //         .primary_textual_output()
-        //         .unwrap();
-
-        //     if let Some(prompt) = Self::extract_user_prompt(&output) {
-        //         println!("waiting for user input...");
-        //         let user_input = get_input(prompt).await?;
-        //         self.agent_scratchpad =
-        //             format!("{}\n\nUser: {}", self.agent_scratchpad, user_input);
-        //         println!("Updated scratchpad to:\n{}", self.agent_scratchpad)
-        //     } else {
-        //         println!("exiting agent chain");
-        //         break;
-        //     }
-        // }
 
         return Ok("temp".to_owned());
     }

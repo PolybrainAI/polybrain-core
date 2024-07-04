@@ -56,7 +56,7 @@ where
         parsed_prompt,
         onshape_document_id,
     );
-    onpy_agent.run().await.unwrap();
+    onpy_agent.run(&query_input).await.unwrap();
 
     send_output(ServerResponse {
         response_type: ServerResponseType::Final,

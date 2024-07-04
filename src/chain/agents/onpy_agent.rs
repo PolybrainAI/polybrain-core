@@ -1,13 +1,16 @@
+use futures::Future;
 use llm_chain::options;
 use llm_chain::prompt;
 use llm_chain::{executor, parameters};
 use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
+use std::pin::Pin;
 use std::process::{Command, Output};
 use thiserror::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
+const MAX_ITER: usize = 10;
 const MAX_ITER_ERR: usize = 10;
 const ONPY_AGENT_PROMPT: &str = r###"
 
@@ -91,6 +94,20 @@ partstudio = onpy.get_document("{{document_id}}").get_partstudio()
 ==== BEGIN ====
 
 {{scratchpad}}
+
+"###;
+
+const INPUT_PRASE_PROMPT: &str = r###"\
+
+The following response is from a user when asked if they want changes to their
+model.
+
+The response was:
+{{user_response}}
+
+If the user wants changes, respond "Yes"
+If the user does NOT want changes, response "No"
+Respond in only ONE word.
 
 "###;
 
@@ -257,10 +274,7 @@ impl<'b> OnPyAgent<'b> {
             );
 
             let mut code_output = prompt!(ONPY_ERROR_PROMPT)
-                .run(
-                    &parameters,
-                    &exec,
-                )
+                .run(&parameters, &exec)
                 .await
                 .expect("Failed to run handle_error agent")
                 .to_immediate()
@@ -297,66 +311,120 @@ impl<'b> OnPyAgent<'b> {
         todo!()
     }
 
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run<'a, I>(&mut self, get_input: &I) -> Result<(), Box<dyn std::error::Error>>
+    where
+        I: Fn(
+                String,
+            ) -> Pin<
+                Box<dyn Future<Output = Result<String, Box<dyn std::error::Error>>> + Send + 'a>,
+            > + Send
+            + 'a,
+    {
+        // Setup primary executor
         let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),
             // Model: Model::Gpt35Turbo,
             ApiKey: self.openai_key.clone(),
             StopSequence: vec!["```\n\n".to_string(), "Cell Output".to_string()]
         };
-        let exec = executor!(chatgpt, opts)?;
+        let main_exec = executor!(chatgpt, opts)?;
+
+        // Setup secondary executor
+        let opts = options! {
+            Model: Model::Gpt35Turbo,
+            ApiKey: self.openai_key.clone(),
+            StopSequence: vec!["\n".to_string()]
+        };
+        let secondary_exec = executor!(chatgpt, opts)?;
+
         let onpy_guide = Self::load_onpy_guide().await;
         let mut scratchpad = String::new();
 
-        println!("generating code...");
-        let mut code_output = prompt!(ONPY_AGENT_PROMPT)
-            .run(
-                &parameters!(
-                    "onpy_guide" => &onpy_guide,
-                    "user_request" => &self.original_request,
-                    "modeling_instructions" => &self.report,
-                    "document_id" => &self.onshape_document,
-                    "scratchpad" => &scratchpad
+        for _ in 0..MAX_ITER {
+            // Generate code
+            println!("generating code...");
+            let mut code_output = prompt!(ONPY_AGENT_PROMPT)
+                .run(
+                    &parameters!(
+                        "onpy_guide" => &onpy_guide,
+                        "user_request" => &self.original_request,
+                        "modeling_instructions" => &self.report,
+                        "document_id" => &self.onshape_document,
+                        "scratchpad" => &scratchpad
+                    ),
+                    &main_exec,
+                )
+                .await?
+                .to_immediate()
+                .await?
+                .primary_textual_output()
+                .expect("No LLM output");
+
+            println!(
+                concat!(
+                    "==== LLM CODE RESPONSE ====\n",
+                    "(Main Agent)\n",
+                    "{}\n",
+                    "==========================="
                 ),
-                &exec,
-            )
-            .await?
-            .to_immediate()
-            .await?
-            .primary_textual_output()
-            .expect("No LLM output");
+                code_output
+            );
 
-        println!(
-            concat!(
-                "==== LLM CODE RESPONSE ====\n",
-                "(Main Agent)\n",
-                "{}\n",
-                "==========================="
-            ),
-            code_output
-        );
+            // Run code
+            code_output = Self::format_code_output(&code_output)?;
+            match Self::execute_block(&code_output, &self.onshape_document).await {
+                Ok(output) => {
+                    scratchpad.push_str(&code_output);
+                    scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", output))
+                }
+                Err(CodeError::ExecutionError(tb)) => {
+                    let (new_code, new_output) = &self
+                        .handle_error(code_output.clone(), tb)
+                        .await
+                        .inspect_err(|err| {
+                            eprintln!("Failed to recover from erroneous response: {err}")
+                        })?;
 
-        code_output = Self::format_code_output(&code_output)?;
-        match Self::execute_block(&code_output, &self.onshape_document).await {
-            Ok(output) => {
-                scratchpad.push_str(&code_output);
-                scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", output))
-            }
-            Err(CodeError::ExecutionError(tb)) => {
-                let (new_code, new_output) = &self
-                    .handle_error(code_output.clone(), tb)
-                    .await
-                    .inspect_err(|err| {
-                        eprintln!("Failed to recover from erroneous response: {err}")
-                    })?;
+                    scratchpad.push_str(&new_code);
+                    scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", new_output));
+                }
+                Err(_) => {
+                    panic!("Unhandled error occurred during code execution")
+                }
+            };
 
-                scratchpad.push_str(&new_code);
-                scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", new_output));
+            // Validate with user
+            let user_input =
+                get_input("Does this model meet your specifications?".to_owned()).await?;
+
+            let llm_interpretation = prompt!(INPUT_PRASE_PROMPT)
+                .run(
+                    &parameters!(
+                        "user_response" => &user_input
+                    ),
+                    &secondary_exec,
+                )
+                .await?
+                .to_immediate()
+                .await?
+                .primary_textual_output()
+                .expect("No LLM output");
+
+            let is_acceptance = llm_interpretation.to_ascii_lowercase().contains("yes");
+
+            if is_acceptance {
+                println!("The user accepted the model");
+                break;
+            } else {
+                let scratchpad_addition = format!(concat!(
+                    "The user was asked asked if they are satisfied with the model above. ",
+                    "They responded saying: \n\"{}\"\n",
+                    "Make adjustments to the previous model such that it conforms with the user's requested change",
+                ), user_input);
+
+                scratchpad.push_str(&scratchpad_addition);
             }
-            Err(_) => {
-                panic!("Unhandled error occurred during code execution")
-            }
-        };
+        }
 
         Ok(())
     }
