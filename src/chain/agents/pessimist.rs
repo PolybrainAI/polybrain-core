@@ -15,7 +15,7 @@ use crate::{
     server::types::{ServerResponse, ServerResponseType},
 };
 
-const PESSIMIST_PROMPT: &str = "
+const PESSIMIST_PROMPT: &str = r###"
 
 You are a friendly assistant who works for Polybrain, a 3D modeling company. 
 
@@ -26,12 +26,12 @@ Greet the client. They should provide a 3D modeling request; if they don't,
 ask them what you want Polybrain to make. Once they have provided a model,
 use your existing knowledge of 3D CAD platforms to determine if their
 model can be created within Polybrain's capabilities. When in doubt, 
-error on the safe side--rejecting potentially complex models.
+let the user do what they want.
 
 Polybrain (a parametric modeler) has the ability to:
 - Create 2D sketches with primitive lines, arcs, rectangles, and circles
-- Create extrusions (addition and subtraction)
-- Create lofts
+ate extrusions (addition and subtraction)- Cre
+- Create lofts (this is very big!)
 
 This means that Polybrain, unlike other CAD software, is unable to:
 - Create revolve, sweep, and chamfer features
@@ -44,10 +44,13 @@ Respond quickly, and try not to ask too many questions. Your responses
 should rarely be longer than 2 sentences.
 
 If the request is reasonable, end your final message with \"Begin!\" You 
-MUST respond with \"Begin!\" eventually.
+MUST respond with \"Begin!\" eventually. 
+
+YOU MUST SEND "Begin!" TO ALLOW THE USER TO PROCEED. IF YOU PROMPT NO QUESTION
+YOU MUST SEND "Begin!" IT IS PARAMOUNT!
 
 {{conversation_history}}
-";
+"###;
 
 const SUMMARIZER_PROMPT: &str = "
 Consider the following conversation between a user and an assistant. Summarize
@@ -108,8 +111,9 @@ impl<'b> PessimistAgent<'b> {
 
         let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),
+            // Model: Model::Gpt35Turbo,
             ApiKey: self.openai_key.clone(),
-            StopSequence: vec!["\n".to_string(), "User:".to_string()]
+            StopSequence: vec!["User:".to_string()]
         };
         let exec = executor!(chatgpt, opts)?;
 

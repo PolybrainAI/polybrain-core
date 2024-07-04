@@ -75,6 +75,7 @@ async fn start_execution_loop(
     if let Err(err) = enter_chain(
         &initial_input.contents,
         credentials,
+        incoming.onshape_document_id,
         |input: String| Box::pin(query_input_callback(&stream_mutex, input)),
         |output: ServerResponse| Box::pin(send_output_callback(&stream_mutex, output)),
     )

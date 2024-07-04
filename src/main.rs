@@ -1,6 +1,8 @@
+use chain::agents::onpy_agent::OnPyAgent;
 use dotenv::dotenv;
 use server::dispatch::dispatch_incoming;
 use std::io::Result;
+use textwrap::dedent;
 use tokio::net::TcpListener;
 
 use util::get_dotenv;
@@ -24,4 +26,18 @@ async fn main() -> Result<()> {
 
         dispatch_incoming(socket).await;
     }
+
+    // let output = OnPyAgent::execute_block(
+    //     &dedent(
+    //         r###"
+
+    //         print("Hello world!")
+
+    //         "###
+    //     )
+    //     , "123").await.unwrap();
+
+    // println!("output: {output}");
+
+    Ok(())
 }

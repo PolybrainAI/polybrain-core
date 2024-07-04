@@ -74,6 +74,7 @@ Final Considerations:
 - OnPy cannot control color, or surface finish.
 - Your report is going to another employee, so now is the chance to ask any
 questions to the user about desired measurements.
+- All OnPy units are in Inches. Only include units of Inches in your response
 
 ================
 
@@ -169,8 +170,8 @@ impl<'b> ExecutivePlanner<'b> {
         let mut scratchpad = String::new();
 
         let opts = options! {
-            // Model: Model::Other("gpt-4o".to_string()),
-            Model: Model::Gpt35Turbo,
+            Model: Model::Other("gpt-4o".to_string()),
+            // Model: Model::Gpt35Turbo,
             ApiKey: self.openai_key.clone()
         };
         let exec = executor!(chatgpt, opts)?;
@@ -240,39 +241,15 @@ impl<'b> ExecutivePlanner<'b> {
                         ),
                         res, e
                     );
-                    return Err(Box::new(e));
+
+                    scratchpad.push_str(&format!(concat!(
+                        "YAML ERROR: Rephrase the following. Remove any mappings and respond as a string with \"|\"\n",
+                        "Input\n```\n{}\n```\n",
+                        "Output\n```\n{}\n```"
+                    ), res, e ));
                 }
             };
         }
-
-        // let mut output: String;
-
-        // loop {
-        //     let parameters = parameters!(
-        //         "model_description" => self.model_description,
-        //         "math_notes" => self.math_notes,
-        //         "scratchpad" => self.agent_scratchpad.clone()
-        //     );
-
-        //     output = prompt!(system: EXECUTIVE_PLANNER_PROMPT)
-        //         .run(&parameters, &exec) // ...and run it
-        //         .await?
-        //         .to_immediate()
-        //         .await?
-        //         .primary_textual_output()
-        //         .unwrap();
-
-        //     if let Some(prompt) = Self::extract_user_prompt(&output) {
-        //         println!("waiting for user input...");
-        //         let user_input = get_input(prompt).await?;
-        //         self.agent_scratchpad =
-        //             format!("{}\n\nUser: {}", self.agent_scratchpad, user_input);
-        //         println!("Updated scratchpad to:\n{}", self.agent_scratchpad)
-        //     } else {
-        //         println!("exiting agent chain");
-        //         break;
-        //     }
-        // }
 
         return Ok("temp".to_owned());
     }
