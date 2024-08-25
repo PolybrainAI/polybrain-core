@@ -1035,7 +1035,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.5.7",
+ "socket2 0.4.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -1402,6 +1402,7 @@ checksum = "643cb0b8d4fcc284004d5fd0d67ccf61dfffadb7f75e1e71bc420f4688a3a704"
 [[package]]
 name = "llm-chain"
 version = "0.13.0"
+source = "git+https://github.com/kyle-tennison/llm-chain?branch=better-tool-trigger#d276d03c713241e92047707d219fc21f5e5b4b38"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1426,6 +1427,7 @@ dependencies = [
 [[package]]
 name = "llm-chain-openai"
 version = "0.13.0"
+source = "git+https://github.com/kyle-tennison/llm-chain?branch=better-tool-trigger#d276d03c713241e92047707d219fc21f5e5b4b38"
 dependencies = [
  "async-openai",
  "async-trait",

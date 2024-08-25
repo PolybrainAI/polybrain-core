@@ -25,8 +25,8 @@ reqwest = { version = "0.12.4", features = ["json"] }
 cookie = "0.16"
 tokio-tungstenite = "0.15"
 tungstenite = "0.15"
-llm-chain = {version = "0.13.0", path="/Users/kyletennison/Downloads/llm-chain/crates/llm-chain"}
-llm-chain-openai =  {version = "0.13.0", path="/Users/kyletennison/Downloads/llm-chain/crates/llm-chain-openai"}
+llm-chain = {git="https://github.com/kyle-tennison/llm-chain", branch = "better-tool-trigger" ,package = "llm-chain"}
+llm-chain-openai =  {git="https://github.com/kyle-tennison/llm-chain", branch = "better-tool-trigger" ,package = "llm-chain-openai"}
 thiserror = "1.0.61"
 serde_yaml = "0.9.34"
 async-trait = "0.1.80"
