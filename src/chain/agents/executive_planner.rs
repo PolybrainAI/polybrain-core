@@ -125,7 +125,7 @@ impl<'b> ExecutivePlanner<'b> {
             + Send
             + 'a,
     {
-        let mut response = deserialize_output(&output)?;
+        let mut response = deserialize_output(output)?;
         let input: UserQueryInput =
             serde_yaml::from_value(response.clone().input).inspect_err(|e| {
                 println!(
@@ -251,6 +251,6 @@ impl<'b> ExecutivePlanner<'b> {
             };
         }
 
-        return Ok("temp".to_owned());
+        Ok("temp".to_owned())
     }
 }

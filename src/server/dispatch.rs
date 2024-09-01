@@ -1,5 +1,5 @@
 use crate::{
-    chain::chain::enter_chain,
+    chain::chain_entry::enter_chain,
     server::{
         auth::fetch_user_credentials,
         codec::{send_error, send_message, wait_for_message},
@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use std::error::Error;
-use tokio::{net::TcpStream, sync::Mutex};
+use tokio::{io::AsyncWriteExt, net::TcpStream, sync::Mutex};
 use tokio_tungstenite::{accept_async, WebSocketStream};
 
 use uuid::Uuid;
@@ -16,7 +16,7 @@ use uuid::Uuid;
 use super::types::{ServerResponse, ServerResponseType, SessionStartRequest, UserInputResponse};
 
 async fn query_input_callback(
-    ws_mutex: &Mutex<WebSocketStream<TcpStream>>,
+    ws_mutex: &Mutex<WebSocketStream<&mut TcpStream>>,
     input: String,
 ) -> Result<String, Box<dyn Error>> {
     let mut ws_stream = ws_mutex.lock().await;
@@ -35,7 +35,7 @@ async fn query_input_callback(
 }
 
 async fn send_output_callback(
-    ws_mutex: &Mutex<WebSocketStream<TcpStream>>,
+    ws_mutex: &Mutex<WebSocketStream<&mut TcpStream>>,
     output: ServerResponse,
 ) -> Result<(), Box<dyn Error>> {
     let mut ws_stream = ws_mutex.lock().await;
@@ -46,7 +46,7 @@ async fn send_output_callback(
 }
 
 async fn start_execution_loop(
-    mut ws_stream: WebSocketStream<TcpStream>,
+    mut ws_stream: WebSocketStream<&mut TcpStream>,
 ) -> Result<(), Box<dyn Error>> {
     println!("Spawned new task for socket");
 
@@ -95,11 +95,20 @@ async fn start_execution_loop(
     Ok(())
 }
 
-async fn process(socket: TcpStream) {
+async fn process(mut socket: TcpStream) {
     println!("converting incoming tcp to websocket: {:?}", socket);
-    let ws_stream = accept_async(socket)
-        .await
-        .expect("Failed to convert socket stream to ws");
+    let ws_stream = match accept_async(&mut socket).await {
+        Ok(stream) => stream,
+        Err(_) => {
+            socket
+                .write_all(
+                    "Expected websocket. If you are lost, go to https://polybrain.xyz.".as_bytes(),
+                )
+                .await
+                .expect("Failed to write to socket");
+            return;
+        }
+    };
 
     if let Err(err) = start_execution_loop(ws_stream).await {
         eprintln!("tokio process errored: {}", err)

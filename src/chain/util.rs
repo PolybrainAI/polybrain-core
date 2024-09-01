@@ -1,7 +1,8 @@
 pub fn trim_assistant_prefix(s: &str) -> &str {
     let prefix = "Assistant:";
-    if s.starts_with(prefix) {
-        &s[prefix.len()..].trim_start()
+
+    if let Some(stripped) = s.strip_prefix(prefix) {
+        stripped.trim_start()
     } else {
         s
     }

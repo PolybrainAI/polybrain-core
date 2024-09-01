@@ -9,6 +9,6 @@ impl<'a> MathematicianAgent<'a> {
     }
 
     pub async fn run(&self) -> String {
-        return "No math notes".to_string();
+        "No math notes".to_owned()
     }
 }
