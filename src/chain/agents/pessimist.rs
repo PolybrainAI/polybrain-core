@@ -72,21 +72,20 @@ impl<'b> PessimistAgent<'b> {
     pub fn new(openai_key: &'b String) -> PessimistAgent {
         PessimistAgent {
             messages: Conversation::new(),
-            openai_key: openai_key,
+            openai_key,
         }
     }
 
     fn build_conversation_history(&self) -> String {
         let message_history = &self.messages.to_string();
-        return message_history.to_owned();
+        message_history.to_owned()
     }
 
     fn build_prompt(&self) -> String {
-        let prompt = PESSIMIST_PROMPT.replace(
+        PESSIMIST_PROMPT.replace(
             "{{conversation_history}}",
             &self.build_conversation_history(),
-        );
-        prompt
+        )
     }
 
     pub async fn run<'a, I, O>(

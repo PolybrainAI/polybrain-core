@@ -177,7 +177,6 @@ impl<'b> OnPyAgent<'b> {
 
         let code = output
             .split("```")
-            .into_iter()
             .enumerate()
             .filter(|pair| pair.0 % 2 != 0)
             .map(|pair| pair.1.trim())
@@ -214,7 +213,7 @@ impl<'b> OnPyAgent<'b> {
             .expect("Failed to create tmp python file");
 
         // Write the code to the file
-        file.write(code.as_bytes())
+        file.write_all(code.as_bytes())
             .await
             .expect("Failed to write to tmp python file");
 
@@ -295,11 +294,10 @@ impl<'b> OnPyAgent<'b> {
 
             scratchpad.push_str(&code_output);
 
-            match {
-                code_output = Self::format_code_output(&code_output)
-                    .map_err(|err| CodeError::BadFormat(err.to_string()))?;
-                Self::execute_block(&code_output, &self.onshape_document).await
-            } {
+            code_output = Self::format_code_output(&code_output)
+                .map_err(|err| CodeError::BadFormat(err.to_string()))?;
+
+            match Self::execute_block(&code_output, &self.onshape_document).await {
                 Ok(console) => {
                     return Ok((code_output, console));
                 }
@@ -385,7 +383,7 @@ impl<'b> OnPyAgent<'b> {
                             eprintln!("Failed to recover from erroneous response: {err}")
                         })?;
 
-                    scratchpad.push_str(&new_code);
+                    scratchpad.push_str(new_code);
                     scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", new_output));
                 }
                 Err(_) => {

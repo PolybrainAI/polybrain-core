@@ -10,38 +10,39 @@ use super::error::SocketError;
 
 /// Waits for an incoming message of a certain type
 pub async fn wait_for_message<T: DeserializeOwned + Serialize + fmt::Debug>(
-    ws_stream: &mut WebSocketStream<TcpStream>,
-) -> Result<T, Box<dyn Error>> {
+    ws_stream: &mut WebSocketStream<&mut TcpStream>,
+) -> Result<T, String> {
     let (_, mut read) = ws_stream.split();
 
     if let Some(message) = read.next().await {
-        let message = message.expect("websocket has corrupted message");
+        let message = message.map_err(|_| "Corrupted message in websocket".to_owned())?;
 
         if message.is_text() {
-            let message_text = message.to_text()?;
+            let message_text = message
+                .to_text()
+                .map_err(|_| "Message is not UTF-8".to_owned())?;
             match serde_json::from_str(message_text) {
                 Ok(model) => {
                     println!("got incoming message:\n{:?}", &model);
-                    return Ok(model);
+                    Ok(model)
                 }
                 Err(err) => {
                     println!("failed to deserialize incoming message:\n{:?}", err);
                     println!("the message was:\n{message_text}");
-                    return Err(Box::new(err));
+                    Err("Bad Request: Unable to deserialize incoming message".to_owned())
                 }
             }
         } else {
-            println!("incoming websocket message was not text!");
-            return Err(Box::new(tungstenite::Error::Utf8));
+            Err("incoming websocket message was not text".to_owned())
         }
     } else {
-        return Err(Box::new(tungstenite::Error::ConnectionClosed));
-    };
+        Err("Connection closed".to_owned())
+    }
 }
 
 /// Sends an outbound message
 pub async fn send_message<T: Serialize>(
-    ws_stream: &mut WebSocketStream<TcpStream>,
+    ws_stream: &mut WebSocketStream<&mut TcpStream>,
     payload: T,
 ) -> Result<(), Box<dyn Error>> {
     let (mut write, _) = ws_stream.split();
@@ -55,7 +56,7 @@ pub async fn send_message<T: Serialize>(
 
 /// Sends an error response
 pub async fn send_error<T>(
-    ws_stream: &mut WebSocketStream<TcpStream>,
+    ws_stream: &mut WebSocketStream<&mut TcpStream>,
     error: T,
 ) -> Result<(), Box<dyn Error>>
 where
