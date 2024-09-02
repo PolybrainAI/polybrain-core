@@ -95,19 +95,26 @@ async fn start_execution_loop(
     Ok(())
 }
 
+fn build_html_response() -> String {
+    let html_error = include_str!("html_error.html");
+    format!(
+        "HTTP/1.1 200 OK\r\n\
+        Content-Type: text/html; charset=UTF-8\r\n\
+        Content-Length: {len}\r\n\
+        Connection: close\r\n\r\n\
+        {content}",
+        len = html_error.len(),
+        content = html_error
+    )
+}
+
 async fn process(mut socket: TcpStream) {
     println!("converting incoming tcp to websocket: {:?}", socket);
     let ws_stream = match accept_async(&mut socket).await {
         Ok(stream) => stream,
         Err(_) => {
             socket
-                .write_all(
-                    "HTTP/1.1 200 OK\r\n\
-                        Content-Type: text/html; charset=UTF-8\r\n\
-                        Content-Length: 128\r\n\
-                        Connection: close\r\n\r\n\
-                        <!DOCTYPE html><html lang=\"en\"><head></head><body>Expected websocket. If you are lost, go to https://polybrain.xyz</body></html>".as_bytes(),
-                )
+                .write_all(build_html_response().as_bytes())
                 .await
                 .expect("Failed to write to socket");
             return;
