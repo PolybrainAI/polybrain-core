@@ -104,9 +104,9 @@ async fn process(mut socket: TcpStream) {
                 .write_all(
                     "HTTP/1.1 200 OK\r\n\
                         Content-Type: text/html; charset=UTF-8\r\n\
-                        Content-Length: 141\r\n\
+                        Content-Length: 128\r\n\
                         Connection: close\r\n\r\n\
-                        <!DOCTYPE html><html lang=\"en\"><head></head><body>Expected websocket. If you are lost, go to https://polybrain.xyz</body></html>.".as_bytes(),
+                        <!DOCTYPE html><html lang=\"en\"><head></head><body>Expected websocket. If you are lost, go to https://polybrain.xyz</body></html>".as_bytes(),
                 )
                 .await
                 .expect("Failed to write to socket");
