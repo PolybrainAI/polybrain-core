@@ -9,7 +9,6 @@ use tokio::{
 };
 use tokio_tungstenite::accept_async;
 
-
 use super::background::{BackgroundRequest, BackgroundResponse};
 
 // async fn query_input_callback(
@@ -82,12 +81,11 @@ async fn process(mut socket: TcpStream) {
     match output {
         Ok(_) => {
             println!("Successfully completed chain. Closing connection.")
-        },
+        }
         Err(err) => {
             println!("ERROR: {err}");
         }
     }
-
 }
 
 /// Dispatches an incoming socket connection

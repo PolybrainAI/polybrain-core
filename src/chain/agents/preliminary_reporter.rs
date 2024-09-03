@@ -1,4 +1,3 @@
-
 use llm_chain::options;
 use llm_chain::prompt;
 use llm_chain::{executor, parameters};
@@ -6,9 +5,9 @@ use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
 
 use crate::server::background::BackgroundClient;
+use crate::server::error::PolybrainError;
 use crate::server::types::ApiCredentials;
 use crate::server::types::ServerResponseType;
-use crate::server::error::PolybrainError;
 use crate::{chain::util::trim_assistant_prefix, server::types::ServerResponse};
 
 use super::Agent;

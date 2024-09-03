@@ -20,7 +20,6 @@ impl fmt::Display for PolybrainError {
 
 impl Error for PolybrainError {}
 
-
 // pub trait SocketError {
 //     fn serialize_string(&self) -> String
 //     where

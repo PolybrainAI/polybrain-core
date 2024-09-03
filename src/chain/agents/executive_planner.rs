@@ -8,8 +8,8 @@ use crate::chain::tools::user_input_tool::{
     UserQuery, UserQueryError, UserQueryInput, UserQueryOutput,
 };
 use crate::server::background::BackgroundClient;
-use crate::server::types::ApiCredentials;
 use crate::server::error::PolybrainError;
+use crate::server::types::ApiCredentials;
 
 use async_trait::async_trait;
 use llm_chain::{

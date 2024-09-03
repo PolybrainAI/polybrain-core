@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use crate::server::types::{ONSHAPE_API, OPENAI_API};
 use crate::server::error::PolybrainError;
+use crate::server::types::{ONSHAPE_API, OPENAI_API};
 
 use super::types::{ApiCredentials, UserDocument, UserInfo};
 

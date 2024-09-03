@@ -5,11 +5,10 @@ use llm_chain::Parameters;
 use llm_chain_openai::chatgpt::{Executor, Model};
 
 use crate::server::{
-        background::{BackgroundClient, BackgroundRequest, BackgroundResponse},
-        types::{ApiCredentials, ServerResponse},
-        error::PolybrainError
-    }
-;
+    background::{BackgroundClient, BackgroundRequest, BackgroundResponse},
+    error::PolybrainError,
+    types::{ApiCredentials, ServerResponse},
+};
 
 pub mod executive_planner;
 pub mod mathematician;

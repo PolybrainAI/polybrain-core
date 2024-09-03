@@ -1,8 +1,8 @@
 use llm_chain_openai::chatgpt::Model;
 
 use crate::{
-    server::{background::BackgroundClient, types::ApiCredentials},
     server::error::PolybrainError,
+    server::{background::BackgroundClient, types::ApiCredentials},
 };
 
 use super::Agent;

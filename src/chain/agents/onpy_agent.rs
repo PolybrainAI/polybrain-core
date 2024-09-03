@@ -9,8 +9,8 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
 use crate::server::background::BackgroundClient;
-use crate::server::types::ApiCredentials;
 use crate::server::error::PolybrainError;
+use crate::server::types::ApiCredentials;
 
 use super::Agent;
 
@@ -267,8 +267,8 @@ impl<'b> Agent for OnPyAgent<'b> {
             );
 
             // Run code
-            code_output = Self::format_code_output(&code_output)
-                .map_err(PolybrainError::CodeError)?;
+            code_output =
+                Self::format_code_output(&code_output).map_err(PolybrainError::CodeError)?;
             match Self::execute_block(&code_output, &self.onshape_document).await {
                 Ok(output) => {
                     scratchpad.push_str(&code_output);

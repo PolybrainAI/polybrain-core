@@ -1,4 +1,3 @@
-
 use uuid::Uuid;
 
 use crate::chain::agents::executive_planner::ExecutivePlanner;
@@ -9,10 +8,10 @@ use crate::chain::agents::preliminary_reporter::PreliminaryReporter;
 use crate::chain::agents::Agent;
 use crate::server::auth::fetch_user_credentials;
 use crate::server::background::{BackgroundClient, BackgroundRequest, BackgroundResponse};
+use crate::server::error::PolybrainError;
 use crate::server::types::{
     ApiCredentials, ServerResponse, ServerResponseType, SessionStartResponse, UserPromptInitial,
 };
-use crate::server::error::PolybrainError;
 
 async fn handshake(
     client: &mut BackgroundClient,

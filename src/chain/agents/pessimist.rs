@@ -1,4 +1,3 @@
-
 use llm_chain::{
     parameters,
     prompt::{ChatMessage, Conversation},
@@ -7,8 +6,8 @@ use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
 
 use crate::server::background::BackgroundClient;
-use crate::server::types::ApiCredentials;
 use crate::server::error::PolybrainError;
+use crate::server::types::ApiCredentials;
 use crate::{
     chain::util::trim_assistant_prefix,
     server::types::{ServerResponse, ServerResponseType},
@@ -44,7 +43,6 @@ impl<'b> PessimistAgent<'b> {
         let message_history = &self.messages.to_string();
         message_history.to_owned()
     }
-
 }
 
 impl<'b> Agent for PessimistAgent<'b> {
