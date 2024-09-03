@@ -9,14 +9,14 @@ use tokio_tungstenite::WebSocketStream;
 
 use crate::util::PolybrainError;
 
-use super::types::{SessionStartRequest, SessionStartResponse, UserPromptInitial};
+use super::types::{ServerResponse, SessionStartRequest, SessionStartResponse, UserPromptInitial};
 
 pub enum BackgroundRequest {
     GetSessionStart,
     RespondSessionStart(SessionStartResponse),
     GetInitialInput,
     UserQuery(String),
-    SendOutput(String),
+    SendOutput(ServerResponse),
     End,
 }
 

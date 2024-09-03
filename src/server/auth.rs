@@ -149,12 +149,16 @@ async fn validate_credentials(credentials: &ApiCredentials) -> Result<(), Polybr
             } else {
                 let response_message = r.text().await.unwrap();
                 println!("OnShape responded with error: \n{}", response_message);
-                return Err(PolybrainError::BadRequest("Bad OnShape Credentials".to_string()));
+                return Err(PolybrainError::BadRequest(
+                    "Bad OnShape Credentials".to_string(),
+                ));
             }
         }
         Err(err) => {
             println!("Call to onshape had internal error: {}", err);
-            return Err(PolybrainError::InternalError("Call to OnShape failed".to_owned()));
+            return Err(PolybrainError::InternalError(
+                "Call to OnShape failed".to_owned(),
+            ));
         }
     }
 
@@ -172,12 +176,16 @@ async fn validate_credentials(credentials: &ApiCredentials) -> Result<(), Polybr
             } else {
                 let response_message = r.text().await.unwrap();
                 println!("OpenAI responded with error: \n{}", response_message);
-                return Err(PolybrainError::BadRequest("Bad OpenAI Credentials".to_string()));
+                return Err(PolybrainError::BadRequest(
+                    "Bad OpenAI Credentials".to_string(),
+                ));
             }
         }
         Err(err) => {
             println!("Call to OpenAI had internal error: {}", err);
-            return Err(PolybrainError::InternalError("Call to OpenAI failed".to_owned()));
+            return Err(PolybrainError::InternalError(
+                "Call to OpenAI failed".to_owned(),
+            ));
         }
     }
 
@@ -205,7 +213,9 @@ pub async fn fetch_user_credentials(user_token: &str) -> Result<ApiCredentials, 
         Some(u) => u,
         None => {
             println!("No corresponding user exists in mongodb");
-            return Err(PolybrainError::BadRequest("Missing user credentials".to_owned()));
+            return Err(PolybrainError::BadRequest(
+                "Missing user credentials".to_owned(),
+            ));
         }
     };
 
@@ -216,7 +226,9 @@ pub async fn fetch_user_credentials(user_token: &str) -> Result<ApiCredentials, 
     ]
     .contains(&&None)
     {
-        return Err(PolybrainError::BadRequest(("User is missing some credentials".to_string())));
+        return Err(PolybrainError::BadRequest(
+            ("User is missing some credentials".to_string()),
+        ));
     }
 
     let openai_cyphertext = user.credentials.open_ai_api.unwrap();

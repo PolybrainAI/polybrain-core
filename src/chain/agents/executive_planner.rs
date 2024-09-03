@@ -10,6 +10,9 @@ use crate::chain::tools::report_tool::{Report, ReportError, ReportInput, ReportO
 use crate::chain::tools::user_input_tool::{
     UserQuery, UserQueryError, UserQueryInput, UserQueryOutput,
 };
+use crate::server::background::{BackgroundClient, BackgroundRequest};
+use crate::server::types::ApiCredentials;
+use crate::util::PolybrainError;
 
 use async_trait::async_trait;
 use llm_chain::{
@@ -19,6 +22,8 @@ use llm_chain::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use super::Agent;
 
 multitool!(
     Multitool,
@@ -97,48 +102,47 @@ all thoughts with a YAML comment (i.e., a line that begins with #)
 const MAX_ITER: usize = 7;
 
 pub struct ExecutivePlanner<'b> {
-    openai_key: &'b String,
-    model_description: &'b String,
-    math_notes: &'b String,
+    credentials: &'b ApiCredentials,
+    client: &'b mut BackgroundClient,
+    model_description: String,
+    math_notes: String,
 }
 
 impl<'b> ExecutivePlanner<'b> {
     pub fn new(
-        openai_key: &'b String,
-        model_description: &'b String,
-        math_notes: &'b String,
-    ) -> Result<ExecutivePlanner<'b>, Box<dyn Error>> {
-        Ok(ExecutivePlanner {
-            openai_key,
+        credentials: &'b ApiCredentials,
+        client: &'b mut BackgroundClient,
+        model_description: String,
+        math_notes: String,
+    ) -> Self {
+        Self {
+            credentials,
+            client,
             model_description,
             math_notes,
-        })
+        }
     }
 
-    async fn process_user_input_tool<'a, I>(
-        &mut self,
-        output: &str,
-        get_input: &I,
-    ) -> Result<String, Box<dyn Error>>
-    where
-        I: Fn(String) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + Send + 'a>>
-            + Send
-            + 'a,
-    {
-        let mut response = deserialize_output(output)?;
-        let input: UserQueryInput =
-            serde_yaml::from_value(response.clone().input).inspect_err(|e| {
+    async fn process_user_input_tool(&mut self, output: &str) -> Result<String, PolybrainError> {
+        let mut response = deserialize_output(output)
+            .map_err(|err| PolybrainError::InternalError(err.to_string()))?;
+        let input: UserQueryInput = serde_yaml::from_value(response.clone().input)
+            .inspect_err(|e| {
                 println!(
                     "Unable to extract input from user input tool response: {}",
                     e
                 )
-            })?;
+            })
+            .map_err(|err| PolybrainError::InternalError(err.to_string()))?;
         let prompt = input.question.replace("\"", "");
-        let real_user_input = get_input(prompt).await?;
 
-        response.output = real_user_input;
+        let user_input = self.query_input(prompt).await?;
 
-        Ok(serde_yaml::to_string(&response)?)
+        response.output = user_input;
+
+        serde_yaml::to_string(&response).map_err(|_| {
+            PolybrainError::InternalError("Failed to convert user input into yaml".to_owned())
+        })
     }
 
     fn process_report_tool(&self, output: &str) -> String {
@@ -155,39 +159,53 @@ impl<'b> ExecutivePlanner<'b> {
 
         output
     }
+}
 
-    pub async fn run<'a, I>(&mut self, get_input: &I) -> Result<String, Box<dyn Error>>
-    where
-        I: Fn(String) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + Send + 'a>>
-            + Send
-            + 'a,
-    {
+impl<'b> Agent for ExecutivePlanner<'b> {
+    type InvocationResponse = String;
+
+    async fn client<'a>(&'a mut self) -> &'a mut BackgroundClient {
+        self.client
+    }
+
+    async fn invoke(&mut self) -> Result<String, PolybrainError> {
         let mut tool_collection: ToolCollection<Multitool> = ToolCollection::new();
         tool_collection.add_tool(UserQuery::new().into());
         tool_collection.add_tool(Report::new().into());
 
-        let tool_prompt = tool_collection.to_prompt_template()?;
+        let tool_prompt = tool_collection.to_prompt_template().map_err(|err| {
+            PolybrainError::InternalError(format!("Error getting tool prompt: {}", err))
+        })?;
         let mut scratchpad = String::new();
 
         let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),
             // Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone()
+            ApiKey: self.credentials.openai_token.clone()
         };
-        let exec = executor!(chatgpt, opts)?;
+        let exec = executor!(chatgpt, opts)
+            .map_err(|err| PolybrainError::InternalError(err.to_string()))?;
 
         for _ in 0..MAX_ITER {
             let parameters = parameters!(
-                "model_description" => self.model_description,
-                "math_notes" => self.math_notes,
+                "model_description" => &self.model_description,
+                "math_notes" => &self.math_notes,
                 "tools" => tool_prompt.to_string(),
                 "scratchpad" => scratchpad.clone(),
             );
             let res = prompt!(EXECUTIVE_PLANNER_PROMPT)
                 .run(&parameters, &exec)
-                .await?
+                .await
+                .map_err(|_| {
+                    PolybrainError::InternalError("Error running executive planner".to_owned())
+                })?
                 .to_immediate()
-                .await?
+                .await
+                .map_err(|_| {
+                    PolybrainError::InternalError(
+                        "Error converting LLM response to immediate".to_owned(),
+                    )
+                })?
                 .primary_textual_output()
                 .expect("No LLM output")
                 .replace("```yaml", "")
@@ -205,7 +223,7 @@ impl<'b> ExecutivePlanner<'b> {
                     }
 
                     if addition.contains("command: User Query") {
-                        addition = self.process_user_input_tool(&addition, get_input).await?;
+                        addition = self.process_user_input_tool(&addition).await?;
                     }
 
                     println!(

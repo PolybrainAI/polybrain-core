@@ -1,14 +1,31 @@
-pub struct MathematicianAgent<'a> {
-    _openai_key: &'a String,
+use crate::{
+    server::{background::BackgroundClient, types::ApiCredentials},
+    util::PolybrainError,
+};
+
+use super::Agent;
+
+pub struct Mathematician<'a> {
+    credentials: &'a ApiCredentials,
+    client: &'a mut BackgroundClient,
 }
-impl<'a> MathematicianAgent<'a> {
-    pub fn new(openai_key: &String) -> MathematicianAgent {
-        MathematicianAgent {
-            _openai_key: openai_key,
+impl<'a> Mathematician<'a> {
+    pub fn new(credentials: &'a ApiCredentials, client: &'a mut BackgroundClient) -> Self {
+        Mathematician {
+            credentials,
+            client,
         }
     }
+}
 
-    pub async fn run(&self) -> String {
-        "No math notes".to_owned()
+impl<'a> Agent for Mathematician<'a> {
+    type InvocationResponse = String;
+
+    async fn client<'b>(&'b mut self) -> &'b mut BackgroundClient {
+        self.client
+    }
+
+    async fn invoke(&mut self) -> Result<String, PolybrainError> {
+        Ok("No math notes".to_owned())
     }
 }

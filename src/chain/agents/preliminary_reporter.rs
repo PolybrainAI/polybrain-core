@@ -7,8 +7,13 @@ use llm_chain::{executor, parameters};
 use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
 
+use crate::server::background::BackgroundClient;
+use crate::server::types::ApiCredentials;
 use crate::server::types::ServerResponseType;
+use crate::util::PolybrainError;
 use crate::{chain::util::trim_assistant_prefix, server::types::ServerResponse};
+
+use super::Agent;
 
 const PRELIMINARY_REPORTER_PROMPT: &str = r###"
 You are a reporter for Polybrain. The following outline was written by an 
@@ -30,41 +35,60 @@ The report is:
 
 pub struct PreliminaryReporter<'b> {
     report: String,
-    openai_key: &'b String,
+    credentials: &'b ApiCredentials,
+    client: &'b mut BackgroundClient,
 }
 
 impl<'b> PreliminaryReporter<'b> {
-    pub fn new(openai_key: &'b String, report: String) -> PreliminaryReporter {
-        PreliminaryReporter { openai_key, report }
+    pub fn new(
+        credentials: &'b ApiCredentials,
+        report: String,
+        client: &'b mut BackgroundClient,
+    ) -> Self {
+        Self {
+            report,
+            credentials,
+            client,
+        }
+    }
+}
+
+impl<'b> Agent for PreliminaryReporter<'b> {
+    type InvocationResponse = ();
+
+    async fn client<'a>(&'a mut self) -> &'a mut BackgroundClient {
+        self.client
     }
 
-    pub async fn run<'a, O>(&mut self, send_output: &O) -> Result<(), Box<dyn std::error::Error>>
-    where
-        O: Fn(
-                ServerResponse,
-            ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send + 'a>>
-            + Send
-            + 'a,
-    {
+    async fn invoke(&mut self) -> Result<(), PolybrainError> {
         let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),
             // Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone()
+            ApiKey: self.credentials.openai_token.clone()
         };
-        let exec = executor!(chatgpt, opts)?;
+        let exec = executor!(chatgpt, opts)
+            .map_err(|err| PolybrainError::InternalError(err.to_string()))?;
 
         let report = prompt!(PRELIMINARY_REPORTER_PROMPT)
             .run(&parameters!("report" => &self.report), &exec)
-            .await?
+            .await
+            .map_err(|_| {
+                PolybrainError::InternalError("Error in PreliminaryReporter LLM".to_owned())
+            })?
             .to_immediate()
-            .await?
+            .await
+            .map_err(|_| {
+                PolybrainError::InternalError(
+                    "Failed to convert LLM response to immediate".to_owned(),
+                )
+            })?
             .primary_textual_output()
             .expect("No LLM output");
 
         let report = trim_assistant_prefix(&report).replace("OnPy", "OnShape");
         println!("Summarized prompt as: {}", report);
 
-        send_output(ServerResponse {
+        self.send_message(ServerResponse {
             response_type: ServerResponseType::Info,
             content: report,
         })

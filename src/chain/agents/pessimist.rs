@@ -10,10 +10,15 @@ use llm_chain::{
 use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
 
+use crate::server::background::BackgroundClient;
+use crate::server::types::ApiCredentials;
+use crate::util::PolybrainError;
 use crate::{
     chain::util::trim_assistant_prefix,
     server::types::{ServerResponse, ServerResponseType},
 };
+
+use super::Agent;
 
 const PESSIMIST_PROMPT: &str = r###"
 
@@ -65,14 +70,22 @@ The conversation is:
 
 pub struct PessimistAgent<'b> {
     messages: Conversation,
-    openai_key: &'b String,
+    credentials: &'b ApiCredentials,
+    client: &'b mut BackgroundClient,
 }
 
 impl<'b> PessimistAgent<'b> {
-    pub fn new(openai_key: &'b String) -> PessimistAgent {
-        PessimistAgent {
-            messages: Conversation::new(),
-            openai_key,
+    pub fn new(
+        credentials: &'b ApiCredentials,
+        client: &'b mut BackgroundClient,
+        initial_message: String,
+    ) -> Self {
+        let messages = Conversation::new().with_user(initial_message);
+
+        Self {
+            messages,
+            credentials,
+            client,
         }
     }
 
@@ -87,49 +100,53 @@ impl<'b> PessimistAgent<'b> {
             &self.build_conversation_history(),
         )
     }
+}
 
-    pub async fn run<'a, I, O>(
-        &mut self,
-        initial_message: &str,
-        get_input: &I,
-        send_output: &O,
-    ) -> Result<String, Box<dyn std::error::Error>>
-    where
-        I: Fn(String) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + Send + 'a>>
-            + Send
-            + 'a,
-        O: Fn(
-                ServerResponse,
-            ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send + 'a>>
-            + Send
-            + 'a,
-    {
+impl<'b> Agent for PessimistAgent<'b> {
+    type InvocationResponse = String;
+
+    async fn client<'a>(&'a mut self) -> &'a mut BackgroundClient {
+        self.client
+    }
+
+    async fn invoke(&mut self) -> Result<String, PolybrainError> {
         let mut agent_response: String = "".to_owned();
-        self.messages
-            .add_message(ChatMessage::user(initial_message.to_owned()));
 
         let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),
             // Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone(),
+            ApiKey: self.credentials.openai_token.clone(),
             StopSequence: vec!["User:".to_string()]
         };
-        let exec = executor!(chatgpt, opts)?;
+        let exec = executor!(chatgpt, opts).map_err(|_| {
+            PolybrainError::InternalError("Error calling pessimist executor".to_owned())
+        })?;
 
         while !agent_response.contains("Begin!") {
             let parameters = parameters! {};
 
             let res = prompt!(system: &self.build_prompt())
                 .run(&parameters, &exec) // ...and run it
-                .await?;
+                .await
+                .map_err(|_| {
+                    PolybrainError::InternalError("Error calling Pessimist LLM".to_owned())
+                })?
+                .to_immediate()
+                .await
+                .map_err(|_| {
+                    PolybrainError::InternalError(
+                        "Error converting LLM response to immediate".to_owned(),
+                    )
+                })?
+                .as_content()
+                .to_text();
 
-            let r = res.to_immediate().await?.as_content().to_text().clone();
-            agent_response = trim_assistant_prefix(&r).trim().to_string();
+            agent_response = trim_assistant_prefix(&res).trim().to_string();
 
             println!("Pessimist: {}", agent_response);
 
             if agent_response.contains("Begin!") {
-                send_output(ServerResponse {
+                self.send_message(ServerResponse {
                     response_type: ServerResponseType::Info,
                     content: agent_response.replace("Begin!", ""),
                 })
@@ -137,7 +154,7 @@ impl<'b> PessimistAgent<'b> {
             } else {
                 self.messages
                     .add_message(ChatMessage::assistant(agent_response.replace("\n", " ")));
-                let user_input = get_input(agent_response.clone()).await?;
+                let user_input = self.query_input(agent_response.clone()).await?;
                 self.messages.add_message(ChatMessage::user(user_input))
             }
         }
@@ -148,9 +165,15 @@ impl<'b> PessimistAgent<'b> {
                 &parameters!("conversation_history" => self.build_conversation_history()),
                 &exec,
             )
-            .await?
+            .await
+            .map_err(|_| PolybrainError::InternalError("Error calling Pessimist LLM".to_owned()))?
             .to_immediate()
-            .await?
+            .await
+            .map_err(|_| {
+                PolybrainError::InternalError(
+                    "Error converting LLM response to immediate".to_owned(),
+                )
+            })?
             .as_content()
             .to_text();
 

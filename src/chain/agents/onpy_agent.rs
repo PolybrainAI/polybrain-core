@@ -10,6 +10,12 @@ use thiserror::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
+use crate::server::background::BackgroundClient;
+use crate::server::types::ApiCredentials;
+use crate::util::PolybrainError;
+
+use super::Agent;
+
 const MAX_ITER: usize = 10;
 const MAX_ITER_ERR: usize = 10;
 const ONPY_AGENT_PROMPT: &str = r###"
@@ -123,25 +129,25 @@ pub enum CodeError {
     Internal(String),
 }
 
-unsafe impl std::marker::Send for CodeError {}
-unsafe impl Sync for CodeError {}
-
 pub struct OnPyAgent<'b> {
+    credentials: &'b ApiCredentials,
+    client: &'b mut BackgroundClient,
     report: String,
-    openai_key: &'b String,
     original_request: String,
     onshape_document: String,
 }
 
 impl<'b> OnPyAgent<'b> {
     pub fn new(
-        openai_key: &'b String,
+        credentials: &'b ApiCredentials,
+        client: &'b mut BackgroundClient,
         report: String,
         original_request: String,
         onshape_document: String,
-    ) -> OnPyAgent {
-        OnPyAgent {
-            openai_key,
+    ) -> Self {
+        Self {
+            credentials,
+            client,
             report,
             original_request,
             onshape_document,
@@ -243,7 +249,7 @@ impl<'b> OnPyAgent<'b> {
         let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),
             // Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone(),
+            ApiKey: self.credentials.openai_token.clone(),
             StopSequence: vec!["```\n\n".to_string(), "Cell Output".to_string(), "Console Output".to_string()]
         };
         let exec = executor!(chatgpt, opts).map_err(|err| CodeError::Internal(err.to_string()))?;
@@ -308,32 +314,34 @@ impl<'b> OnPyAgent<'b> {
         eprintln!("Max error retries exceeded!");
         todo!()
     }
+}
 
-    pub async fn run<'a, I>(&mut self, get_input: &I) -> Result<(), Box<dyn std::error::Error>>
-    where
-        I: Fn(
-                String,
-            ) -> Pin<
-                Box<dyn Future<Output = Result<String, Box<dyn std::error::Error>>> + Send + 'a>,
-            > + Send
-            + 'a,
-    {
+impl<'b> Agent for OnPyAgent<'b> {
+    type InvocationResponse = ();
+
+    async fn client<'a>(&'a mut self) -> &'a mut BackgroundClient {
+        self.client
+    }
+
+    async fn invoke(&mut self) -> Result<(), PolybrainError> {
         // Setup primary executor
         let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),
             // Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone(),
+            ApiKey: self.credentials.openai_token.clone(),
             StopSequence: vec!["```\n\n".to_string(), "Cell Output".to_string()]
         };
-        let main_exec = executor!(chatgpt, opts)?;
+        let main_exec = executor!(chatgpt, opts)
+            .map_err(|err| PolybrainError::InternalError(err.to_string()))?;
 
         // Setup secondary executor
         let opts = options! {
             Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone(),
+            ApiKey: self.credentials.openai_token.clone(),
             StopSequence: vec!["\n".to_string()]
         };
-        let secondary_exec = executor!(chatgpt, opts)?;
+        let secondary_exec = executor!(chatgpt, opts)
+            .map_err(|err| PolybrainError::InternalError(err.to_string()))?;
 
         let onpy_guide = Self::load_onpy_guide().await;
         let mut scratchpad = String::new();
@@ -352,9 +360,17 @@ impl<'b> OnPyAgent<'b> {
                     ),
                     &main_exec,
                 )
-                .await?
+                .await
+                .map_err(|err| {
+                    PolybrainError::InternalError("Error calling OnPy Agent LLM".to_owned())
+                })?
                 .to_immediate()
-                .await?
+                .await
+                .map_err(|err| {
+                    PolybrainError::InternalError(
+                        "Error converting LLM response to immediate".to_owned(),
+                    )
+                })?
                 .primary_textual_output()
                 .expect("No LLM output");
 
@@ -369,7 +385,8 @@ impl<'b> OnPyAgent<'b> {
             );
 
             // Run code
-            code_output = Self::format_code_output(&code_output)?;
+            code_output = Self::format_code_output(&code_output)
+                .map_err(|err| PolybrainError::CodeError(err))?;
             match Self::execute_block(&code_output, &self.onshape_document).await {
                 Ok(output) => {
                     scratchpad.push_str(&code_output);
@@ -381,7 +398,8 @@ impl<'b> OnPyAgent<'b> {
                         .await
                         .inspect_err(|err| {
                             eprintln!("Failed to recover from erroneous response: {err}")
-                        })?;
+                        })
+                        .map_err(|err| PolybrainError::CodeError(err))?;
 
                     scratchpad.push_str(new_code);
                     scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", new_output));
@@ -392,8 +410,9 @@ impl<'b> OnPyAgent<'b> {
             };
 
             // Validate with user
-            let user_input =
-                get_input("Does this model meet your specifications?".to_owned()).await?;
+            let user_input = self
+                .query_input("Does this model meet your specifications?".to_owned())
+                .await?;
 
             let llm_interpretation = prompt!(INPUT_PRASE_PROMPT)
                 .run(
@@ -402,9 +421,17 @@ impl<'b> OnPyAgent<'b> {
                     ),
                     &secondary_exec,
                 )
-                .await?
+                .await
+                .map_err(|_| {
+                    PolybrainError::InternalError("Error calling OnPy Agent LLM".to_owned())
+                })?
                 .to_immediate()
-                .await?
+                .await
+                .map_err(|_| {
+                    PolybrainError::InternalError(
+                        "Error converting LLM response to immediate".to_owned(),
+                    )
+                })?
                 .primary_textual_output()
                 .expect("No LLM output");
 
