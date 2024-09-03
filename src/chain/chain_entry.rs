@@ -9,6 +9,7 @@ use crate::chain::agents::mathematician::Mathematician;
 use crate::chain::agents::onpy_agent::OnPyAgent;
 use crate::chain::agents::pessimist::PessimistAgent;
 use crate::chain::agents::preliminary_reporter::PreliminaryReporter;
+use crate::chain::agents::Agent;
 use crate::server::auth::fetch_user_credentials;
 use crate::server::background::{BackgroundClient, BackgroundRequest, BackgroundResponse};
 use crate::server::types::{
@@ -18,7 +19,7 @@ use crate::util::PolybrainError;
 
 async fn handshake(
     client: &mut BackgroundClient,
-) -> Result<(ApiCredentials, UserPromptInitial), PolybrainError> {
+) -> Result<(ApiCredentials, UserPromptInitial, String), PolybrainError> {
     println!("Spawned new task for socket");
 
     let session_start_request;
@@ -48,61 +49,63 @@ async fn handshake(
     }
 
     println!("Getting initial prompt...");
-    let inital_input = match client.send(BackgroundRequest::GetInitialInput).await? {
+    let initial_input = match client.send(BackgroundRequest::GetInitialInput).await? {
         BackgroundResponse::InitialInput(inp) => inp,
         _ => {
             return Err(PolybrainError::Unreachable);
         }
     };
 
-    Ok((credentials, inital_input))
+    Ok((
+        credentials,
+        initial_input,
+        session_start_request.onshape_document_id,
+    ))
 }
 
-pub async fn enter_chain(client: BackgroundClient) -> Result<(), PolybrainError> {
-    let (credentials, initial_input) = handshake(&mut client).await?;
+pub async fn enter_chain(mut client: BackgroundClient) -> Result<(), PolybrainError> {
+    let (credentials, initial_input, onshape_document) = handshake(&mut client).await?;
     println!(
         "Entering chain with initial input: {}",
         initial_input.contents
     );
 
     // Pessimist Chain
-    let mut pessimist = PessimistAgent::new(&credentials.openai_token);
-    let parsed_prompt = pessimist
-        .run(initial_input, &query_input, &send_output)
-        .await
-        .map_err(|err| eprintln!("Pessimist errored: {}", err))
-        .unwrap();
-
+    let mut pessimist =
+        PessimistAgent::new(&credentials, &mut client, initial_input.contents.clone());
+    let parsed_prompt = pessimist.invoke().await?;
     // Mathematician Chain
-    let mathematician = Mathematician::new(&credentials.openai_token);
-    let math_notes = mathematician.run().await;
+    let mut mathematician = Mathematician::new(&credentials, &mut client);
+    let math_notes = mathematician.invoke().await?;
 
     // Executive Planner Chain
     let mut executive_planner =
-        ExecutivePlanner::new(&credentials.openai_token, &parsed_prompt, &math_notes).unwrap();
-    let modeler_outline = executive_planner.run(&query_input).await.unwrap();
-    println!("The modeler outline is:\n{}", modeler_outline);
+        ExecutivePlanner::new(&credentials, &mut client, parsed_prompt, math_notes);
+    let executive_report = executive_planner.invoke().await?;
+    println!("The modeler outline is:\n{}", executive_report);
 
     // Preliminary Reporter Chain
     let mut preliminary_reporter =
-        PreliminaryReporter::new(&credentials.openai_token, modeler_outline.clone());
-    preliminary_reporter.run(&send_output).await.unwrap();
+        PreliminaryReporter::new(&credentials, executive_report.clone(), &mut client);
+    preliminary_reporter.invoke().await?;
 
     // OnPy Agent Chain
     let mut onpy_agent = OnPyAgent::new(
-        &credentials.openai_token,
-        modeler_outline,
-        parsed_prompt,
-        onshape_document_id,
+        &credentials,
+        &mut client,
+        executive_report,
+        initial_input.contents,
+        onshape_document,
     );
-    onpy_agent.run(&query_input).await.unwrap();
+    onpy_agent.invoke().await?;
 
-    send_output(ServerResponse {
-        response_type: ServerResponseType::Final,
-        content: "Your model has been created!".to_owned(),
-    })
-    .await
-    .unwrap();
+    client
+        .send(BackgroundRequest::End(ServerResponse {
+            response_type: ServerResponseType::Final,
+            content: "Your model has been created!".to_owned(),
+        }))
+        .await
+        .unwrap();
 
     Ok(())
 }

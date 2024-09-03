@@ -17,7 +17,7 @@ pub enum BackgroundRequest {
     GetInitialInput,
     UserQuery(String),
     SendOutput(ServerResponse),
-    End,
+    End(ServerResponse),
 }
 
 pub enum BackgroundResponse {
