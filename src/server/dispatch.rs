@@ -26,7 +26,7 @@ use super::background::{BackgroundRequest, BackgroundResponse};
 //     )
 //     .await?;
 
-//     let incoming: UserInputResponse = wait_for_message(&mut ws_stream).await?;
+//     let incoming: UserQueryResponse = wait_for_message(&mut ws_stream).await?;
 //     Ok(incoming.response)
 // }
 

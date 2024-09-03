@@ -15,7 +15,7 @@ class UserPromptInitial(BaseModel):
     contents: str
 
 
-class UserInputResponse(BaseModel):
+class UserQueryResponse(BaseModel):
     response: str
 
 

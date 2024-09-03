@@ -90,10 +90,12 @@ pub trait Agent {
     /// * A `String` of the user's response
     async fn query_input(&mut self, input: String) -> Result<String, PolybrainError> {
         let client = self.client().await;
-        let answer = match client.send(BackgroundRequest::UserQuery(input)).await? {
+        let response = match client.send(BackgroundRequest::UserQuery(input)).await? {
             BackgroundResponse::UserResponse(ans) => Ok(ans),
             _ => Err(PolybrainError::Unreachable),
         }?;
+
+        let answer = response.response;
 
         println!("User responded with '{}'", answer);
         Ok(answer)

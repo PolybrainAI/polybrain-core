@@ -19,13 +19,13 @@ pub struct UserPromptInitial {
     pub contents: String,
 }
 #[derive(Serialize, Deserialize, Debug)]
-pub struct UserInputResponse {
+pub struct UserQueryResponse {
     pub response: String,
 }
 
 #[derive(Serialize, Debug)]
 pub enum ServerResponseType {
-    _Query,
+    Query,
     Info,
     Final,
 }

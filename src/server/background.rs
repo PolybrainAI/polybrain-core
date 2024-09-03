@@ -1,15 +1,15 @@
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
+use serde::Serialize;
 use tokio::{
     net::TcpStream,
     sync::mpsc::{Receiver, Sender},
 };
-use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
-use crate::server::error::PolybrainError;
+use crate::server::{error::PolybrainError, types::UserQueryResponse};
 
-use super::types::{ServerResponse, SessionStartRequest, SessionStartResponse, UserPromptInitial};
+use super::types::{ServerResponse, ServerResponseType, SessionStartRequest, SessionStartResponse, UserPromptInitial};
 
-#[allow(dead_code)] // NOTE: Remove after implementing
 pub enum BackgroundRequest {
     GetSessionStart,
     RespondSessionStart(SessionStartResponse),
@@ -19,11 +19,10 @@ pub enum BackgroundRequest {
     End(ServerResponse),
 }
 
-#[allow(dead_code)] // NOTE: Remove after implementing
 pub enum BackgroundResponse {
     SessionStart(SessionStartRequest),
     InitialInput(UserPromptInitial),
-    UserResponse(String),
+    UserResponse(UserQueryResponse),
     Ack,
 }
 
@@ -94,6 +93,55 @@ impl<'b> BackgroundTask<'b> {
         Ok(BackgroundResponse::SessionStart(session_start_request))
     }
 
+    async fn get_initial_input(&mut self) -> Result<BackgroundResponse, PolybrainError> {
+        println!("Waiting for initial input...");
+
+        let incoming = self.wait_ws_message().await?;
+
+        let initial_input: UserPromptInitial = serde_json::from_slice(&incoming)
+            .map_err(|err| {
+                PolybrainError::BadRequest(format!(
+                    "Failed to parse UserPromptInitial:\n {:#?}",
+                    err
+                ))
+            })?;
+
+        Ok(BackgroundResponse::InitialInput(initial_input))
+    }
+
+    async fn respond_session_start(&mut self, response: SessionStartResponse) -> Result<BackgroundResponse, PolybrainError>{
+        self.send_ws_message(&response).await?;
+        Ok(BackgroundResponse::Ack)
+    }
+
+    async fn get_user_query(&mut self, query: String) -> Result<BackgroundResponse, PolybrainError>{
+
+        let payload = ServerResponse{
+            response_type: ServerResponseType::Query,
+            content: query
+        };
+
+        self.send_ws_message(&payload).await?;
+
+        let response_raw = self.wait_ws_message().await?;
+
+        let response: UserQueryResponse = serde_json::from_slice(&response_raw).map_err(|err| PolybrainError::BadRequest(format!("Unable to deserialize query response:\n{}", err)))?;
+
+        Ok(BackgroundResponse::UserResponse(response))
+
+    }
+
+    async fn send_output(&mut self, output: ServerResponse) -> Result<BackgroundResponse, PolybrainError>{
+        self.send_ws_message(&output).await?;
+        Ok(BackgroundResponse::Ack)
+    }
+
+    async fn send_end(&mut self, output: ServerResponse) -> Result<BackgroundResponse, PolybrainError>{
+        self.send_ws_message(&output).await?;
+        self.alive = false;
+        Ok(BackgroundResponse::Ack)
+    }
+
     /// Dispatches an incoming request to the corresponding handle
     async fn dispatch(
         &mut self,
@@ -101,7 +149,11 @@ impl<'b> BackgroundTask<'b> {
     ) -> Result<BackgroundResponse, PolybrainError> {
         match request {
             BackgroundRequest::GetSessionStart => self.get_session_start().await,
-            _ => todo!(),
+            BackgroundRequest::GetInitialInput => self.get_initial_input().await,
+            BackgroundRequest::RespondSessionStart(r) => self.respond_session_start(r).await,
+            BackgroundRequest::UserQuery(q) => self.get_user_query(q).await,
+            BackgroundRequest::SendOutput(o) => self.send_output(o).await,
+            BackgroundRequest::End(r) => self.send_end(r).await
         }
     }
 
@@ -129,6 +181,22 @@ impl<'b> BackgroundTask<'b> {
         } else {
             Err(PolybrainError::SocketError("Connection closed".to_owned()))
         }
+    }
+
+    /// Send a message to the websocket client
+    /// 
+    /// Args:
+    /// * `payload` - The serializable payload to send
+    async fn send_ws_message<T: Serialize>(&mut self, payload: &T) -> Result<(), PolybrainError> {
+        let ws_stream = &mut self.ws;
+        let (mut write, _) = ws_stream.split();
+
+        let payload_str = serde_json::to_string_pretty(payload).expect("Serde could not serialize payload");
+        println!("Sending output: {}", payload_str);
+
+        write.send(Message::Text(payload_str)).await.map_err(|err| PolybrainError::SocketError(err.to_string()))?;
+
+        Ok(())
     }
 
     /// Begin background loop
