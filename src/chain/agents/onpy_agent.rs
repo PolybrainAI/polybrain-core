@@ -228,56 +228,35 @@ impl<'b> Agent for OnPyAgent<'b> {
         self.client
     }
 
+    fn credentials<'a>(&'a self) -> &'a ApiCredentials {
+        &self.credentials
+    }
+
+    fn name<'a>(&'a self) -> &'a str {
+        "OnPy Agent"
+    }
+
+    fn model(&self) -> Model {
+        Model::Other("gpt-4o-mini".to_owned())
+    }
+
     async fn invoke(&mut self) -> Result<(), PolybrainError> {
-        // Setup primary executor
-        let opts = options! {
-            Model: Model::Other("gpt-4o".to_string()),
-            // Model: Model::Gpt35Turbo,
-            ApiKey: self.credentials.openai_token.clone(),
-            StopSequence: vec!["```\n\n".to_string(), "Cell Output".to_string()]
-        };
-        let main_exec = executor!(chatgpt, opts)
-            .map_err(|err| PolybrainError::InternalError(err.to_string()))?;
-
-        // Setup secondary executor
-        let opts = options! {
-            Model: Model::Gpt35Turbo,
-            ApiKey: self.credentials.openai_token.clone(),
-            StopSequence: vec!["\n".to_string()]
-        };
-        let secondary_exec = executor!(chatgpt, opts)
-            .map_err(|err| PolybrainError::InternalError(err.to_string()))?;
-
         let onpy_guide = Self::load_onpy_guide().await;
         let mut scratchpad = String::new();
 
         for _ in 0..MAX_ITER {
             // Generate code
             println!("generating code...");
-            let mut code_output = prompt!(ONPY_AGENT_PROMPT)
-                .run(
-                    &parameters!(
-                        "onpy_guide" => &onpy_guide,
-                        "user_request" => &self.original_request,
-                        "modeling_instructions" => &self.report,
-                        "document_id" => &self.onshape_document,
-                        "scratchpad" => &scratchpad
-                    ),
-                    &main_exec,
-                )
-                .await
-                .map_err(|err| {
-                    PolybrainError::InternalError("Error calling OnPy Agent LLM".to_owned())
-                })?
-                .to_immediate()
-                .await
-                .map_err(|err| {
-                    PolybrainError::InternalError(
-                        "Error converting LLM response to immediate".to_owned(),
-                    )
-                })?
-                .primary_textual_output()
-                .expect("No LLM output");
+
+            let parameters = parameters!(
+                "onpy_guide" => &onpy_guide,
+                "user_request" => &self.original_request,
+                "modeling_instructions" => &self.report,
+                "document_id" => &self.onshape_document,
+                "scratchpad" => &scratchpad
+            );
+
+            let mut code_output = self.call_llm(ONPY_AGENT_PROMPT, parameters).await?;
 
             println!(
                 concat!(
@@ -319,27 +298,10 @@ impl<'b> Agent for OnPyAgent<'b> {
                 .query_input("Does this model meet your specifications?".to_owned())
                 .await?;
 
-            let llm_interpretation = prompt!(INPUT_PRASE_PROMPT)
-                .run(
-                    &parameters!(
-                        "user_response" => &user_input
-                    ),
-                    &secondary_exec,
-                )
-                .await
-                .map_err(|_| {
-                    PolybrainError::InternalError("Error calling OnPy Agent LLM".to_owned())
-                })?
-                .to_immediate()
-                .await
-                .map_err(|_| {
-                    PolybrainError::InternalError(
-                        "Error converting LLM response to immediate".to_owned(),
-                    )
-                })?
-                .primary_textual_output()
-                .expect("No LLM output");
-
+            let parameters = parameters!(
+                "user_response" => &user_input
+            );
+            let llm_interpretation = self.call_llm(INPUT_PRASE_PROMPT, parameters).await?;
             let is_acceptance = llm_interpretation.to_ascii_lowercase().contains("yes");
 
             if is_acceptance {

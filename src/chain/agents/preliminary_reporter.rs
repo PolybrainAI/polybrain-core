@@ -44,6 +44,18 @@ impl<'b> Agent for PreliminaryReporter<'b> {
         self.client
     }
 
+    fn credentials<'a>(&'a self) -> &'a ApiCredentials {
+        &self.credentials
+    }
+
+    fn name<'a>(&'a self) -> &'a str {
+        "Preliminary Reporter"
+    }
+
+    fn model(&self) -> Model {
+        Model::Other("gpt-4o-mini".to_owned())
+    }
+
     async fn invoke(&mut self) -> Result<(), PolybrainError> {
         let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),

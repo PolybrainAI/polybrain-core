@@ -1,3 +1,5 @@
+use llm_chain_openai::chatgpt::Model;
+
 use crate::{
     server::{background::BackgroundClient, types::ApiCredentials},
     util::PolybrainError,
@@ -18,10 +20,22 @@ impl<'a> Mathematician<'a> {
     }
 }
 
-impl<'a> Agent for Mathematician<'a> {
+impl<'b> Agent for Mathematician<'b> {
     type InvocationResponse = String;
 
-    async fn client<'b>(&'b mut self) -> &'b mut BackgroundClient {
+    fn name<'a>(&'a self) -> &'a str {
+        "Mathematician"
+    }
+
+    fn credentials<'a>(&'a self) -> &'a ApiCredentials {
+        &self.credentials
+    }
+
+    fn model(&self) -> llm_chain_openai::chatgpt::Model {
+        Model::Other("gpt-4o-mini".to_owned())
+    }
+
+    async fn client<'a>(&'a mut self) -> &'a mut BackgroundClient {
         self.client
     }
 

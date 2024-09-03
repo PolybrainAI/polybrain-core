@@ -111,6 +111,18 @@ impl<'b> Agent for ExecutivePlanner<'b> {
         self.client
     }
 
+    fn credentials<'a>(&'a self) -> &'a ApiCredentials {
+        &self.credentials
+    }
+
+    fn model(&self) -> Model {
+        Model::Other("gpt-4o".to_owned())
+    }
+
+    fn name<'a>(&'a self) -> &'a str {
+        "Executive Planner"
+    }
+
     async fn invoke(&mut self) -> Result<String, PolybrainError> {
         let mut tool_collection: ToolCollection<Multitool> = ToolCollection::new();
         tool_collection.add_tool(UserQuery::new().into());
@@ -121,14 +133,6 @@ impl<'b> Agent for ExecutivePlanner<'b> {
         })?;
         let mut scratchpad = String::new();
 
-        let opts = options! {
-            Model: Model::Other("gpt-4o".to_string()),
-            // Model: Model::Gpt35Turbo,
-            ApiKey: self.credentials.openai_token.clone()
-        };
-        let exec = executor!(chatgpt, opts)
-            .map_err(|err| PolybrainError::InternalError(err.to_string()))?;
-
         for _ in 0..MAX_ITER {
             let parameters = parameters!(
                 "model_description" => &self.model_description,
@@ -136,21 +140,9 @@ impl<'b> Agent for ExecutivePlanner<'b> {
                 "tools" => tool_prompt.to_string(),
                 "scratchpad" => scratchpad.clone(),
             );
-            let res = prompt!(EXECUTIVE_PLANNER_PROMPT)
-                .run(&parameters, &exec)
-                .await
-                .map_err(|_| {
-                    PolybrainError::InternalError("Error running executive planner".to_owned())
-                })?
-                .to_immediate()
-                .await
-                .map_err(|_| {
-                    PolybrainError::InternalError(
-                        "Error converting LLM response to immediate".to_owned(),
-                    )
-                })?
-                .primary_textual_output()
-                .expect("No LLM output")
+            let res = self
+                .call_llm(EXECUTIVE_PLANNER_PROMPT, parameters)
+                .await?
                 .replace("```yaml", "")
                 .replace("```", "");
 

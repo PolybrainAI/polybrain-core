@@ -64,39 +64,29 @@ impl<'b> Agent for PessimistAgent<'b> {
         self.client
     }
 
+    fn credentials<'a>(&'a self) -> &'a ApiCredentials {
+        &self.credentials
+    }
+
+    fn name<'a>(&'a self) -> &'a str {
+        "Pessimist"
+    }
+
+    fn model(&self) -> Model {
+        Model::Other("gpt-4o-mini".to_owned())
+    }
+
     async fn invoke(&mut self) -> Result<String, PolybrainError> {
         let mut agent_response: String = "".to_owned();
 
-        let opts = options! {
-            Model: Model::Other("gpt-4o".to_string()),
-            // Model: Model::Gpt35Turbo,
-            ApiKey: self.credentials.openai_token.clone(),
-            StopSequence: vec!["User:".to_string()]
-        };
-        let exec = executor!(chatgpt, opts).map_err(|_| {
-            PolybrainError::InternalError("Error calling pessimist executor".to_owned())
-        })?;
-
         while !agent_response.contains("Begin!") {
-            let parameters = parameters! {};
+            let parameters = parameters!(
+                "conversation_history" => self.build_conversation_history()
+            );
 
-            let res = prompt!(system: &self.build_prompt())
-                .run(&parameters, &exec) // ...and run it
-                .await
-                .map_err(|_| {
-                    PolybrainError::InternalError("Error calling Pessimist LLM".to_owned())
-                })?
-                .to_immediate()
-                .await
-                .map_err(|_| {
-                    PolybrainError::InternalError(
-                        "Error converting LLM response to immediate".to_owned(),
-                    )
-                })?
-                .as_content()
-                .to_text();
+            let response = self.call_llm(PESSIMIST_PROMPT, parameters).await?;
 
-            agent_response = trim_assistant_prefix(&res).trim().to_string();
+            agent_response = trim_assistant_prefix(&response).trim().to_string();
 
             println!("Pessimist: {}", agent_response);
 
@@ -114,25 +104,9 @@ impl<'b> Agent for PessimistAgent<'b> {
             }
         }
 
-        // Summarize what the user decided on
-        let summary = prompt!(SUMMARIZER_PROMPT)
-            .run(
-                &parameters!("conversation_history" => self.build_conversation_history()),
-                &exec,
-            )
-            .await
-            .map_err(|_| PolybrainError::InternalError("Error calling Pessimist LLM".to_owned()))?
-            .to_immediate()
-            .await
-            .map_err(|_| {
-                PolybrainError::InternalError(
-                    "Error converting LLM response to immediate".to_owned(),
-                )
-            })?
-            .as_content()
-            .to_text();
-
-        let summary = trim_assistant_prefix(&summary).to_owned();
+        let parameters = parameters!("conversation_history" => self.build_conversation_history());
+        let mut summary = self.call_llm(SUMMARIZER_PROMPT, parameters).await?;
+        summary = trim_assistant_prefix(&summary).to_owned();
 
         println!("Summarized prompt as: {}", summary);
 
