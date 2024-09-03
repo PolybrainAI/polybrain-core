@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use crate::server::types::{ONSHAPE_API, OPENAI_API};
+use crate::util::PolybrainError;
 
 use super::types::{ApiCredentials, UserDocument, UserInfo};
 
@@ -127,7 +128,7 @@ pub async fn fetch_user_id(user_token: &str) -> Result<String, Box<dyn Error>> {
     }
 }
 
-async fn validate_credentials(credentials: &ApiCredentials) -> Result<(), String> {
+async fn validate_credentials(credentials: &ApiCredentials) -> Result<(), PolybrainError> {
     println!("validating credentials...");
 
     println!("pinging onshape...");
@@ -148,12 +149,12 @@ async fn validate_credentials(credentials: &ApiCredentials) -> Result<(), String
             } else {
                 let response_message = r.text().await.unwrap();
                 println!("OnShape responded with error: \n{}", response_message);
-                return Err("Bad OnShape Credentials".to_string());
+                return Err(PolybrainError::BadRequest("Bad OnShape Credentials".to_string()));
             }
         }
         Err(err) => {
             println!("Call to onshape had internal error: {}", err);
-            return Err("An internal error occurred".to_string());
+            return Err(PolybrainError::InternalError("Call to OnShape failed".to_owned()));
         }
     }
 
@@ -171,12 +172,12 @@ async fn validate_credentials(credentials: &ApiCredentials) -> Result<(), String
             } else {
                 let response_message = r.text().await.unwrap();
                 println!("OpenAI responded with error: \n{}", response_message);
-                return Err("Bad OpenAI Credentials".to_string());
+                return Err(PolybrainError::BadRequest("Bad OpenAI Credentials".to_string()));
             }
         }
         Err(err) => {
             println!("Call to OpenAI had internal error: {}", err);
-            return Err("An internal error occurred".to_string());
+            return Err(PolybrainError::InternalError("Call to OpenAI failed".to_owned()));
         }
     }
 
@@ -184,7 +185,7 @@ async fn validate_credentials(credentials: &ApiCredentials) -> Result<(), String
     Ok(())
 }
 
-pub async fn fetch_user_credentials(user_token: &str) -> Result<ApiCredentials, String> {
+pub async fn fetch_user_credentials(user_token: &str) -> Result<ApiCredentials, PolybrainError> {
     // TODO: make a global, mutex-protected instance to avoid having to reconnect for each connection
     let mongo_instance = MongoUtil::new()
         .await
@@ -194,7 +195,7 @@ pub async fn fetch_user_credentials(user_token: &str) -> Result<ApiCredentials, 
         Ok(id) => id,
         Err(err) => {
             println!("failed to get user token: {}", err);
-            return Err("Invalid user token".to_owned());
+            return Err(PolybrainError::BadRequest("Invalid user token".to_owned()));
         }
     };
 
@@ -204,7 +205,7 @@ pub async fn fetch_user_credentials(user_token: &str) -> Result<ApiCredentials, 
         Some(u) => u,
         None => {
             println!("No corresponding user exists in mongodb");
-            return Err("Missing user credentials".to_owned());
+            return Err(PolybrainError::BadRequest("Missing user credentials".to_owned()));
         }
     };
 
@@ -215,7 +216,7 @@ pub async fn fetch_user_credentials(user_token: &str) -> Result<ApiCredentials, 
     ]
     .contains(&&None)
     {
-        return Err("User is missing some credentials".to_string());
+        return Err(PolybrainError::BadRequest(("User is missing some credentials".to_string())));
     }
 
     let openai_cyphertext = user.credentials.open_ai_api.unwrap();

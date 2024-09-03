@@ -2,28 +2,59 @@ use std::error::Error;
 use std::io;
 use std::{future::Future, pin::Pin};
 
+use uuid::Uuid;
+
+use crate::server::auth::fetch_user_credentials;
 use crate::chain::agents::executive_planner::ExecutivePlanner;
 use crate::chain::agents::mathematician::MathematicianAgent;
 use crate::chain::agents::onpy_agent::OnPyAgent;
 use crate::chain::agents::pessimist::PessimistAgent;
 use crate::chain::agents::preliminary_reporter::PreliminaryReporter;
-use crate::server::types::{ApiCredentials, ServerResponse, ServerResponseType};
+use crate::server::background::{BackgroundClient, BackgroundRequest, BackgroundResponse};
+use crate::server::types::{ApiCredentials, ServerResponse, ServerResponseType, SessionStartResponse, UserPromptInitial};
+use crate::util::PolybrainError;
 
-pub async fn enter_chain<'a, I, O>(
-    initial_input: &str,
-    credentials: ApiCredentials,
-    onshape_document_id: String,
-    query_input: I,
-    send_output: O,
-) -> io::Result<()>
-where
-    I: Fn(String) -> Pin<Box<dyn Future<Output = Result<String, Box<dyn Error>>> + Send + 'a>>
-        + Send
-        + 'a,
-    O: Fn(ServerResponse) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send + 'a>>
-        + Send
-        + 'a,
-{
+async fn handshake(client: &mut BackgroundClient) -> Result<(ApiCredentials, UserPromptInitial), PolybrainError> {
+    println!("Spawned new task for socket");
+
+    let session_start_request;
+    match client.send(BackgroundRequest::GetSessionStart).await? {
+        BackgroundResponse::SessionStart(s) => {
+            session_start_request = s;
+        }
+        _ => {
+            return Err(PolybrainError::Unreachable)
+        }
+    }
+
+    println!("Got session start request");
+    let credentials: ApiCredentials = fetch_user_credentials(&session_start_request.user_token).await?;
+
+    let session_id = Uuid::new_v4().to_string();
+    println!("Starting session with id {session_id}");
+
+    let session_start_response = SessionStartResponse{session_id};
+    match client.send(BackgroundRequest::RespondSessionStart(session_start_response)).await? {
+        BackgroundResponse::Ack => (),
+        _ => {return Err(PolybrainError::Unreachable)}
+    }
+
+    println!("Getting initial prompt...");
+    let inital_input = match client.send(BackgroundRequest::GetInitialInput).await? {
+        BackgroundResponse::InitialInput(inp) => inp,
+        _ => {return Err(PolybrainError::Unreachable);}
+    };
+
+    Ok((credentials, inital_input))
+
+}
+
+
+pub async fn enter_chain(
+    client: BackgroundClient
+) -> Result<(), PolybrainError> {
+
+    let (credentials, initial_input) = handshake(&mut client).await?;
     println!("Entering chain with initial input: {}", initial_input);
 
     // Pessimist Chain
