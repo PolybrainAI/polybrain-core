@@ -1,6 +1,4 @@
-use std::{error::Error, pin::Pin};
 
-use futures::Future;
 use llm_chain::options;
 use llm_chain::prompt;
 use llm_chain::{executor, parameters};
@@ -10,7 +8,7 @@ use llm_chain_openai::chatgpt::Model;
 use crate::server::background::BackgroundClient;
 use crate::server::types::ApiCredentials;
 use crate::server::types::ServerResponseType;
-use crate::util::PolybrainError;
+use crate::server::error::PolybrainError;
 use crate::{chain::util::trim_assistant_prefix, server::types::ServerResponse};
 
 use super::Agent;
@@ -44,11 +42,11 @@ impl<'b> Agent for PreliminaryReporter<'b> {
         self.client
     }
 
-    fn credentials<'a>(&'a self) -> &'a ApiCredentials {
-        &self.credentials
+    fn credentials(&self) -> &ApiCredentials {
+        self.credentials
     }
 
-    fn name<'a>(&'a self) -> &'a str {
+    fn name(&self) -> &str {
         "Preliminary Reporter"
     }
 

@@ -1,10 +1,8 @@
-use futures::Future;
 use llm_chain::options;
 use llm_chain::prompt;
 use llm_chain::{executor, parameters};
 use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
-use std::pin::Pin;
 use std::process::{Command, Output};
 use thiserror::Error;
 use tokio::fs::File;
@@ -12,7 +10,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::server::background::BackgroundClient;
 use crate::server::types::ApiCredentials;
-use crate::util::PolybrainError;
+use crate::server::error::PolybrainError;
 
 use super::Agent;
 
@@ -224,15 +222,15 @@ impl<'b> OnPyAgent<'b> {
 impl<'b> Agent for OnPyAgent<'b> {
     type InvocationResponse = ();
 
-    async fn client<'a>(&'a mut self) -> &'a mut BackgroundClient {
+    async fn client(&mut self) -> &mut BackgroundClient {
         self.client
     }
 
-    fn credentials<'a>(&'a self) -> &'a ApiCredentials {
-        &self.credentials
+    fn credentials(&self) -> &ApiCredentials {
+        self.credentials
     }
 
-    fn name<'a>(&'a self) -> &'a str {
+    fn name(&self) -> &str {
         "OnPy Agent"
     }
 
@@ -270,7 +268,7 @@ impl<'b> Agent for OnPyAgent<'b> {
 
             // Run code
             code_output = Self::format_code_output(&code_output)
-                .map_err(|err| PolybrainError::CodeError(err))?;
+                .map_err(PolybrainError::CodeError)?;
             match Self::execute_block(&code_output, &self.onshape_document).await {
                 Ok(output) => {
                     scratchpad.push_str(&code_output);
@@ -283,7 +281,7 @@ impl<'b> Agent for OnPyAgent<'b> {
                         .inspect_err(|err| {
                             eprintln!("Failed to recover from erroneous response: {err}")
                         })
-                        .map_err(|err| PolybrainError::CodeError(err))?;
+                        .map_err(PolybrainError::CodeError)?;
 
                     scratchpad.push_str(new_code);
                     scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", new_output));

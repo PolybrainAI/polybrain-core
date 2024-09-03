@@ -25,7 +25,7 @@ pub struct UserInputResponse {
 
 #[derive(Serialize, Debug)]
 pub enum ServerResponseType {
-    Query,
+    _Query,
     Info,
     Final,
 }

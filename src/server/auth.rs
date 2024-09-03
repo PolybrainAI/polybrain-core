@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use crate::server::types::{ONSHAPE_API, OPENAI_API};
-use crate::util::PolybrainError;
+use crate::server::error::PolybrainError;
 
 use super::types::{ApiCredentials, UserDocument, UserInfo};
 
@@ -227,7 +227,7 @@ pub async fn fetch_user_credentials(user_token: &str) -> Result<ApiCredentials, 
     .contains(&&None)
     {
         return Err(PolybrainError::BadRequest(
-            ("User is missing some credentials".to_string()),
+            "User is missing some credentials".to_string(),
         ));
     }
 

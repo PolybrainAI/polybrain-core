@@ -1,6 +1,6 @@
 pub mod auth;
 pub mod background;
-mod codec;
+// mod codec;
 pub mod dispatch;
-mod error;
+pub mod error;
 pub mod types;

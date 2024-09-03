@@ -2,7 +2,7 @@ use llm_chain_openai::chatgpt::Model;
 
 use crate::{
     server::{background::BackgroundClient, types::ApiCredentials},
-    util::PolybrainError,
+    server::error::PolybrainError,
 };
 
 use super::Agent;
@@ -23,12 +23,12 @@ impl<'a> Mathematician<'a> {
 impl<'b> Agent for Mathematician<'b> {
     type InvocationResponse = String;
 
-    fn name<'a>(&'a self) -> &'a str {
+    fn name(&self) -> &str {
         "Mathematician"
     }
 
-    fn credentials<'a>(&'a self) -> &'a ApiCredentials {
-        &self.credentials
+    fn credentials(&self) -> &ApiCredentials {
+        self.credentials
     }
 
     fn model(&self) -> llm_chain_openai::chatgpt::Model {

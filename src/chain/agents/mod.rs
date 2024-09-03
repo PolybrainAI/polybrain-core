@@ -4,13 +4,12 @@ use llm_chain::prompt;
 use llm_chain::Parameters;
 use llm_chain_openai::chatgpt::{Executor, Model};
 
-use crate::{
-    server::{
+use crate::server::{
         background::{BackgroundClient, BackgroundRequest, BackgroundResponse},
         types::{ApiCredentials, ServerResponse},
-    },
-    util::PolybrainError,
-};
+        error::PolybrainError
+    }
+;
 
 pub mod executive_planner;
 pub mod mathematician;
@@ -23,16 +22,16 @@ pub trait Agent {
     type InvocationResponse;
 
     /// A reference to the background client
-    async fn client<'a>(&'a mut self) -> &'a mut BackgroundClient;
+    async fn client(&mut self) -> &mut BackgroundClient;
 
     /// A reference to the credentials
-    fn credentials<'a>(&'a self) -> &'a ApiCredentials;
+    fn credentials(&self) -> &ApiCredentials;
 
     /// The function to invoke the agent
     async fn invoke(&mut self) -> Result<Self::InvocationResponse, PolybrainError>;
 
     /// The name of the agent, used for debugging
-    fn name<'a>(&'a self) -> &'a str;
+    fn name(&self) -> &str;
 
     /// The type of model the agent runs on
     fn model(&self) -> Model;
@@ -65,7 +64,8 @@ pub trait Agent {
             .await
             .map_err(|err| {
                 PolybrainError::InternalError(format!(
-                    "An error occurred when invoking LLM: {}",
+                    "An error occurred when invoking LLM for `{}`: {}",
+                    self.name(),
                     err
                 ))
             })?

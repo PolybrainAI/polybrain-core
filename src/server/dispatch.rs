@@ -1,31 +1,16 @@
 use crate::{
     chain::chain_entry::enter_chain,
-    server::{
-        auth::fetch_user_credentials,
-        background::BackgroundClient,
-        codec::{send_error, send_message, wait_for_message},
-        error::{AuthenticationError, InternalError},
-        types::{ApiCredentials, SessionStartResponse, UserPromptInitial},
-    },
-    util::PolybrainError,
+    server::background::{BackgroundClient, BackgroundTask},
 };
-use std::{error::Error, sync::Arc};
 use tokio::{
     io::AsyncWriteExt,
     net::TcpStream,
-    sync::{
-        mpsc::{self, Receiver, Sender},
-        Mutex,
-    },
+    sync::mpsc::{self},
 };
-use tokio_tungstenite::{accept_async, WebSocketStream};
+use tokio_tungstenite::accept_async;
 
-use uuid::Uuid;
 
-use super::{
-    background::{BackgroundRequest, BackgroundResponse},
-    types::{ServerResponse, ServerResponseType, SessionStartRequest, UserInputResponse},
-};
+use super::background::{BackgroundRequest, BackgroundResponse};
 
 // async fn query_input_callback(
 //     ws_mutex: &Mutex<WebSocketStream<&mut TcpStream>>,
@@ -83,14 +68,26 @@ async fn process(mut socket: TcpStream) {
         }
     };
 
-    let (request_tx, mut request_rx) = mpsc::channel::<BackgroundRequest>(128);
-    let (response_tx, mut response_rx) = mpsc::channel::<BackgroundResponse>(128);
+    let (request_tx, request_rx) = mpsc::channel::<BackgroundRequest>(128);
+    let (response_tx, response_rx) = mpsc::channel::<BackgroundResponse>(128);
 
+    let background_task = BackgroundTask::new(request_rx, response_tx, ws_stream);
     let bridge = BackgroundClient::connect(request_tx, response_rx);
 
-    tokio::spawn(async move { enter_chain(bridge) });
+    tokio::spawn(async move { enter_chain(bridge).await });
 
     // Background listener
+    let output = background_task.begin().await;
+
+    match output {
+        Ok(_) => {
+            println!("Successfully completed chain. Closing connection.")
+        },
+        Err(err) => {
+            println!("ERROR: {err}");
+        }
+    }
+
 }
 
 /// Dispatches an incoming socket connection

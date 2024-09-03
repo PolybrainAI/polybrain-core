@@ -1,6 +1,3 @@
-use std::error::Error;
-use std::io;
-use std::{future::Future, pin::Pin};
 
 use uuid::Uuid;
 
@@ -15,20 +12,17 @@ use crate::server::background::{BackgroundClient, BackgroundRequest, BackgroundR
 use crate::server::types::{
     ApiCredentials, ServerResponse, ServerResponseType, SessionStartResponse, UserPromptInitial,
 };
-use crate::util::PolybrainError;
+use crate::server::error::PolybrainError;
 
 async fn handshake(
     client: &mut BackgroundClient,
 ) -> Result<(ApiCredentials, UserPromptInitial, String), PolybrainError> {
     println!("Spawned new task for socket");
 
-    let session_start_request;
-    match client.send(BackgroundRequest::GetSessionStart).await? {
-        BackgroundResponse::SessionStart(s) => {
-            session_start_request = s;
-        }
+    let session_start_request = match client.send(BackgroundRequest::GetSessionStart).await? {
+        BackgroundResponse::SessionStart(s) => s,
         _ => return Err(PolybrainError::Unreachable),
-    }
+    };
 
     println!("Got session start request");
     let credentials: ApiCredentials =

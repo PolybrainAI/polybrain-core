@@ -1,18 +1,15 @@
-use futures::Future;
-use llm_chain::prompt;
 use llm_chain::tools::ToolUseError;
-use llm_chain::{executor, options, parameters, tools::ToolCollection};
+use llm_chain::{parameters, tools::ToolCollection};
 use llm_chain_openai::chatgpt::Model;
-use std::{error::Error, pin::Pin};
 
 use crate::chain::tools::misc::deserialize_output;
 use crate::chain::tools::report_tool::{Report, ReportError, ReportInput, ReportOutput};
 use crate::chain::tools::user_input_tool::{
     UserQuery, UserQueryError, UserQueryInput, UserQueryOutput,
 };
-use crate::server::background::{BackgroundClient, BackgroundRequest};
+use crate::server::background::BackgroundClient;
 use crate::server::types::ApiCredentials;
-use crate::util::PolybrainError;
+use crate::server::error::PolybrainError;
 
 use async_trait::async_trait;
 use llm_chain::{
@@ -107,19 +104,19 @@ impl<'b> ExecutivePlanner<'b> {
 impl<'b> Agent for ExecutivePlanner<'b> {
     type InvocationResponse = String;
 
-    async fn client<'a>(&'a mut self) -> &'a mut BackgroundClient {
+    async fn client(&mut self) -> &mut BackgroundClient {
         self.client
     }
 
-    fn credentials<'a>(&'a self) -> &'a ApiCredentials {
-        &self.credentials
+    fn credentials(&self) -> &ApiCredentials {
+        self.credentials
     }
 
     fn model(&self) -> Model {
         Model::Other("gpt-4o".to_owned())
     }
 
-    fn name<'a>(&'a self) -> &'a str {
+    fn name(&self) -> &str {
         "Executive Planner"
     }
 

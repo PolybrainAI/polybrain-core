@@ -1,4 +1,3 @@
-use std::{borrow::Borrow, fmt::format};
 
 use futures::StreamExt;
 use tokio::{
@@ -7,10 +6,11 @@ use tokio::{
 };
 use tokio_tungstenite::WebSocketStream;
 
-use crate::util::PolybrainError;
+use crate::server::error::PolybrainError;
 
 use super::types::{ServerResponse, SessionStartRequest, SessionStartResponse, UserPromptInitial};
 
+#[allow(dead_code)] // NOTE: Remove after implementing
 pub enum BackgroundRequest {
     GetSessionStart,
     RespondSessionStart(SessionStartResponse),
@@ -20,6 +20,7 @@ pub enum BackgroundRequest {
     End(ServerResponse),
 }
 
+#[allow(dead_code)] // NOTE: Remove after implementing
 pub enum BackgroundResponse {
     SessionStart(SessionStartRequest),
     InitialInput(UserPromptInitial),
@@ -57,18 +58,18 @@ impl BackgroundClient {
     }
 }
 
-pub struct BackgroundTask {
+pub struct BackgroundTask<'b> {
     rx: Receiver<BackgroundRequest>,
     tx: Sender<BackgroundResponse>,
-    ws: WebSocketStream<TcpStream>,
+    ws: WebSocketStream<&'b mut TcpStream>,
     alive: bool,
 }
 
-impl BackgroundTask {
+impl<'b> BackgroundTask<'b> {
     pub fn new(
         rx: Receiver<BackgroundRequest>,
         tx: Sender<BackgroundResponse>,
-        ws: WebSocketStream<TcpStream>,
+        ws: WebSocketStream<&'b mut TcpStream>,
     ) -> Self {
         Self {
             tx,
