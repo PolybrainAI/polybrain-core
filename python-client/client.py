@@ -77,7 +77,7 @@ class Client:
         query = await self.receive_message(server_types.ServerResponse)
         print(f"info: got user query: '{query}'")
 
-        await self.send_message(server_types.UserInputResponse(response="yes!"))
+        await self.send_message(server_types.UserQueryResponse(response="yes!"))
         print("info: responded to user query")
 
         message = await self.receive_message(server_types.ServerResponse)

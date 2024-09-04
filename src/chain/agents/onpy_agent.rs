@@ -1,115 +1,24 @@
-use futures::Future;
 use llm_chain::options;
 use llm_chain::prompt;
 use llm_chain::{executor, parameters};
 use llm_chain_openai;
 use llm_chain_openai::chatgpt::Model;
-use std::pin::Pin;
 use std::process::{Command, Output};
 use thiserror::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
+use crate::server::background::BackgroundClient;
+use crate::server::error::PolybrainError;
+use crate::server::types::ApiCredentials;
+
+use super::Agent;
+
 const MAX_ITER: usize = 10;
 const MAX_ITER_ERR: usize = 10;
-const ONPY_AGENT_PROMPT: &str = r###"
-
-Use OnPy (described below) to create a 3D model to conform to the user's
-request.
-
-===== ONPY DOCUMENTATION =====
-{{onpy_guide}}
-
-
-## Final Remarks
-- The `closet_to` query will get the closest face; it will NOT help with
-    selecting the place to put the part on that face. 
-- When possible, it is best to use an offset plane for sketches instead of
-    trying to reference other parts.
-
-===== END DOCUMENTATION =====
-
-The original user's request was:
-{{user_request}}
-
-Your boss provided you the following instructions:
-{{modeling_instructions}}
-
-Respond in markdown. Your code should be in ONE python code block. Assume
-the `partstudio` and `onpy` variables already exist in the scope; adding them
-will cause an error.
-
-This block is appended to the beginning of your code at runtime:
-```py
-import onpy
-partstudio = onpy.get_document("{{document_id}}").get_partstudio()
-```
-
-===== BEGIN =====
-
-Your code:
-
-{{scratchpad}}
-
-"###;
-
-const ONPY_ERROR_PROMPT: &str = r###"
-Find the error and amend the code based on the provided error message. The
-documentation for the OnPy module is provided below, along with some of
-the parameters the original code author was attempting to conform to.
-
-Use OnPy (described below) to create a 3D model to conform to the user's
-request.
-
-===== ONPY DOCUMENTATION =====
-{{onpy_guide}}
-===== END DOCUMENTATION =====
-
-The original user's request was:
-{{user_request}}
-
-Fix the problem in the code below. Respond with a single, large markdown block. Error
-messages are shown under each script.
-
-The original code was:
-```python
-{{erroneous_code}}
-```
-FAILED! Console:
-```
-{{console_output}}
-```
-
-Add your code below, in ONE block. Assume the partstudio variable and onpy
-import above are moved into this context; i.e., do not reimport onpy
-or create a new document/partstudio.
-
-More specifically, the following code is appended to the beginning of each
-block at runtime.
-```py
-import onpy
-partstudio = onpy.get_document("{{document_id}}").get_partstudio()
-```
-
-==== BEGIN ====
-
-{{scratchpad}}
-
-"###;
-
-const INPUT_PRASE_PROMPT: &str = r###"\
-
-The following response is from a user when asked if they want changes to their
-model.
-
-The response was:
-{{user_response}}
-
-If the user wants changes, respond "Yes"
-If the user does NOT want changes, response "No"
-Respond in only ONE word.
-
-"###;
+const ONPY_AGENT_PROMPT: &str = include_str!("prompts/onpy_agent_main.md");
+const ONPY_ERROR_PROMPT: &str = include_str!("prompts/onpy_agent_error.md");
+const INPUT_PRASE_PROMPT: &str = include_str!("prompts/onpy_input_prompt.md");
 
 #[derive(Error, Debug)]
 pub enum CodeError {
@@ -123,25 +32,25 @@ pub enum CodeError {
     Internal(String),
 }
 
-unsafe impl std::marker::Send for CodeError {}
-unsafe impl Sync for CodeError {}
-
 pub struct OnPyAgent<'b> {
+    credentials: &'b ApiCredentials,
+    client: &'b mut BackgroundClient,
     report: String,
-    openai_key: &'b String,
     original_request: String,
     onshape_document: String,
 }
 
 impl<'b> OnPyAgent<'b> {
     pub fn new(
-        openai_key: &'b String,
+        credentials: &'b ApiCredentials,
+        client: &'b mut BackgroundClient,
         report: String,
         original_request: String,
         onshape_document: String,
-    ) -> OnPyAgent {
-        OnPyAgent {
-            openai_key,
+    ) -> Self {
+        Self {
+            credentials,
+            client,
             report,
             original_request,
             onshape_document,
@@ -243,7 +152,7 @@ impl<'b> OnPyAgent<'b> {
         let opts = options! {
             Model: Model::Other("gpt-4o".to_string()),
             // Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone(),
+            ApiKey: self.credentials.openai_token.clone(),
             StopSequence: vec!["```\n\n".to_string(), "Cell Output".to_string(), "Console Output".to_string()]
         };
         let exec = executor!(chatgpt, opts).map_err(|err| CodeError::Internal(err.to_string()))?;
@@ -308,55 +217,44 @@ impl<'b> OnPyAgent<'b> {
         eprintln!("Max error retries exceeded!");
         todo!()
     }
+}
 
-    pub async fn run<'a, I>(&mut self, get_input: &I) -> Result<(), Box<dyn std::error::Error>>
-    where
-        I: Fn(
-                String,
-            ) -> Pin<
-                Box<dyn Future<Output = Result<String, Box<dyn std::error::Error>>> + Send + 'a>,
-            > + Send
-            + 'a,
-    {
-        // Setup primary executor
-        let opts = options! {
-            Model: Model::Other("gpt-4o".to_string()),
-            // Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone(),
-            StopSequence: vec!["```\n\n".to_string(), "Cell Output".to_string()]
-        };
-        let main_exec = executor!(chatgpt, opts)?;
+impl<'b> Agent for OnPyAgent<'b> {
+    type InvocationResponse = ();
 
-        // Setup secondary executor
-        let opts = options! {
-            Model: Model::Gpt35Turbo,
-            ApiKey: self.openai_key.clone(),
-            StopSequence: vec!["\n".to_string()]
-        };
-        let secondary_exec = executor!(chatgpt, opts)?;
+    async fn client(&mut self) -> &mut BackgroundClient {
+        self.client
+    }
 
+    fn credentials(&self) -> &ApiCredentials {
+        self.credentials
+    }
+
+    fn name(&self) -> &str {
+        "OnPy Agent"
+    }
+
+    fn model(&self) -> Model {
+        Model::Other("gpt-4o-mini".to_owned())
+    }
+
+    async fn invoke(&mut self) -> Result<(), PolybrainError> {
         let onpy_guide = Self::load_onpy_guide().await;
         let mut scratchpad = String::new();
 
         for _ in 0..MAX_ITER {
             // Generate code
             println!("generating code...");
-            let mut code_output = prompt!(ONPY_AGENT_PROMPT)
-                .run(
-                    &parameters!(
-                        "onpy_guide" => &onpy_guide,
-                        "user_request" => &self.original_request,
-                        "modeling_instructions" => &self.report,
-                        "document_id" => &self.onshape_document,
-                        "scratchpad" => &scratchpad
-                    ),
-                    &main_exec,
-                )
-                .await?
-                .to_immediate()
-                .await?
-                .primary_textual_output()
-                .expect("No LLM output");
+
+            let parameters = parameters!(
+                "onpy_guide" => &onpy_guide,
+                "user_request" => &self.original_request,
+                "modeling_instructions" => &self.report,
+                "document_id" => &self.onshape_document,
+                "scratchpad" => &scratchpad
+            );
+
+            let mut code_output = self.call_llm(ONPY_AGENT_PROMPT, parameters).await?;
 
             println!(
                 concat!(
@@ -369,7 +267,8 @@ impl<'b> OnPyAgent<'b> {
             );
 
             // Run code
-            code_output = Self::format_code_output(&code_output)?;
+            code_output =
+                Self::format_code_output(&code_output).map_err(PolybrainError::CodeError)?;
             match Self::execute_block(&code_output, &self.onshape_document).await {
                 Ok(output) => {
                     scratchpad.push_str(&code_output);
@@ -381,7 +280,8 @@ impl<'b> OnPyAgent<'b> {
                         .await
                         .inspect_err(|err| {
                             eprintln!("Failed to recover from erroneous response: {err}")
-                        })?;
+                        })
+                        .map_err(PolybrainError::CodeError)?;
 
                     scratchpad.push_str(new_code);
                     scratchpad.push_str(&format!("Cell Output:\n```\n{}\n```", new_output));
@@ -392,22 +292,14 @@ impl<'b> OnPyAgent<'b> {
             };
 
             // Validate with user
-            let user_input =
-                get_input("Does this model meet your specifications?".to_owned()).await?;
+            let user_input = self
+                .query_input("Does this model meet your specifications?".to_owned())
+                .await?;
 
-            let llm_interpretation = prompt!(INPUT_PRASE_PROMPT)
-                .run(
-                    &parameters!(
-                        "user_response" => &user_input
-                    ),
-                    &secondary_exec,
-                )
-                .await?
-                .to_immediate()
-                .await?
-                .primary_textual_output()
-                .expect("No LLM output");
-
+            let parameters = parameters!(
+                "user_response" => &user_input
+            );
+            let llm_interpretation = self.call_llm(INPUT_PRASE_PROMPT, parameters).await?;
             let is_acceptance = llm_interpretation.to_ascii_lowercase().contains("yes");
 
             if is_acceptance {

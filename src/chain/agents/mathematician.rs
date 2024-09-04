@@ -1,14 +1,45 @@
-pub struct MathematicianAgent<'a> {
-    _openai_key: &'a String,
+use llm_chain_openai::chatgpt::Model;
+
+use crate::{
+    server::error::PolybrainError,
+    server::{background::BackgroundClient, types::ApiCredentials},
+};
+
+use super::Agent;
+
+pub struct Mathematician<'a> {
+    credentials: &'a ApiCredentials,
+    client: &'a mut BackgroundClient,
 }
-impl<'a> MathematicianAgent<'a> {
-    pub fn new(openai_key: &String) -> MathematicianAgent {
-        MathematicianAgent {
-            _openai_key: openai_key,
+impl<'a> Mathematician<'a> {
+    pub fn new(credentials: &'a ApiCredentials, client: &'a mut BackgroundClient) -> Self {
+        Mathematician {
+            credentials,
+            client,
         }
     }
+}
 
-    pub async fn run(&self) -> String {
-        "No math notes".to_owned()
+impl<'b> Agent for Mathematician<'b> {
+    type InvocationResponse = String;
+
+    fn name(&self) -> &str {
+        "Mathematician"
+    }
+
+    fn credentials(&self) -> &ApiCredentials {
+        self.credentials
+    }
+
+    fn model(&self) -> llm_chain_openai::chatgpt::Model {
+        Model::Other("gpt-4o-mini".to_owned())
+    }
+
+    async fn client<'a>(&'a mut self) -> &'a mut BackgroundClient {
+        self.client
+    }
+
+    async fn invoke(&mut self) -> Result<String, PolybrainError> {
+        Ok("No math notes".to_owned())
     }
 }
